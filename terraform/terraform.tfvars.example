@@ -1,0 +1,14 @@
+# AWS Configuration
+aws_region = "ap-south-1"
+environment = "prod"
+
+# Database Configuration
+mongo_uri = "your_mongodb_connection_string_here"
+
+# AWS Credentials (these will be stored securely in SSM)
+aws_access_key = "YOUR_AWS_ACCESS_KEY_HERE"
+aws_secret_key = "YOUR_AWS_SECRET_KEY_HERE"
+
+# Optional: Domain Configuration
+domain_name = ""
+certificate_arn = ""

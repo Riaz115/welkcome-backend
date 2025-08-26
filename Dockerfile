@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies (production only)
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy source code
 COPY . .
@@ -22,9 +22,6 @@ RUN adduser -S nodejs -u 1001
 
 # Set working directory
 WORKDIR /app
-
-# Install PM2 globally
-RUN npm install -g pm2
 
 # Copy built application from builder stage
 COPY --from=builder --chown=nodejs:nodejs /app ./
@@ -43,5 +40,5 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-# Start application with PM2
-CMD ["pm2-runtime", "start", "gateway.js"]
+# Start application directly with Node
+CMD ["node", "gateway.js"]

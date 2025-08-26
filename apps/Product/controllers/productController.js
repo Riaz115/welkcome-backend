@@ -4,7 +4,7 @@ import { getS3ImageUrl } from '../middleware/upload.js';
 
 // Create a new product
 export const createProduct = async (req, res) => {
-    console.log("my body testing",req.body);
+    
     try {
         const body = req.body || {};
         // Frontend sends fields like: title, subtitle, brand, brandId, primeCategory, category, subcategory, description, variants (JSON), images (files)
@@ -26,7 +26,9 @@ export const createProduct = async (req, res) => {
         const category = (body.category || body.categoryName || '').toString();
         const subcategory = (body.subcategory || body.subCategory || '').toString();
 
-        const uploadedImages = (req.files || []).map(f => f.key || f.location || f.path).filter(Boolean);
+        const uploadedImages = (req.files || [])
+            .map(f => f.location || getS3ImageUrl(f.key) || f.path)
+            .filter(Boolean);
 
         // Validate required fields
         if (!title || !brand) {
@@ -230,13 +232,21 @@ export const getProductById = async (req, res) => {
             });
         }
 
-        const product = await Product.findById(id);
+        const product = await Product.findById(id).lean();
 
         if (!product) {
             return res.status(404).json({
                 success: false,
                 message: 'Product not found'
             });
+        }
+
+        // Map S3 keys to full URLs in response
+        if (product?.media?.images) {
+            product.media.images = product.media.images.map(getS3ImageUrl);
+        }
+        if (product?.media?.coverImage) {
+            product.media.coverImage = getS3ImageUrl(product.media.coverImage);
         }
 
         res.status(200).json({
@@ -259,7 +269,7 @@ export const getProductById = async (req, res) => {
 export const updateProduct = async (req, res) => {
     try {
         const { id } = req.params;
-        const updateData = req.body;
+        const updateData = { ...req.body };
 
         // Validate ObjectId
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -267,6 +277,34 @@ export const updateProduct = async (req, res) => {
                 success: false,
                 message: 'Invalid product ID'
             });
+        }
+
+        // Merge any newly uploaded images (keep existing ones unless explicitly replaced)
+        const newlyUploaded = (req.files || [])
+            .map(f => f.location || getS3ImageUrl(f.key) || f.path)
+            .filter(Boolean);
+
+        if (newlyUploaded.length > 0) {
+            // Initialize media if missing
+            if (!updateData.media) updateData.media = {};
+
+            // If client sent explicit images array, prefer replacing; otherwise append
+            if (Array.isArray(updateData.images)) {
+                updateData.media.images = updateData.images.concat(newlyUploaded);
+                delete updateData.images;
+            } else if (Array.isArray(updateData.media?.images)) {
+                updateData.media.images = [...new Set([...
+                    updateData.media.images,
+                    ...newlyUploaded,
+                ])];
+            } else {
+                updateData.media.images = newlyUploaded;
+            }
+
+            // Cover image default to first image if not provided
+            if (!updateData.media.coverImage && updateData.media.images.length > 0) {
+                updateData.media.coverImage = updateData.media.images[0];
+            }
         }
 
         // Validate pricing if provided

@@ -17,7 +17,7 @@ router.post('/', uploadProductImages, handleUploadError, createProduct); // Crea
 router.get('/', getAllProducts);                           // GET /api/product - Get all products with filtering & pagination
 router.get('/stats', getProductStats);                     // GET /api/product/stats - Get product statistics
 router.get('/:id', getProductById);                        // GET /api/product/:id - Get single product by ID
-router.put('/:id', updateProduct);                         // PUT /api/product/:id - Update product
+router.put('/:id', uploadProductImages, handleUploadError, updateProduct); // Update product with optional image upload
 router.delete('/:id', deleteProduct);                      // DELETE /api/product/:id - Delete product
 
 // Category-based routes

@@ -30,6 +30,9 @@ COPY --from=builder --chown=nodejs:nodejs /app ./
 RUN mkdir -p uploads/categories uploads/rider-documents uploads/seller-documents && \
     chown -R nodejs:nodejs uploads
 
+# Install curl for ECS task health checks
+RUN apk add --no-cache curl
+
 # Switch to non-root user
 USER nodejs
 

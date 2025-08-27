@@ -7,7 +7,11 @@ import path from 'path';
 dotenv.config();
 
 const s3 = new S3Client({
-  region: process.env.AWS_REGION
+  region: process.env.AWS_REGION,
+  credentials: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY ? {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  } : undefined
 });
 
 const sanitizeFilename = (originalName) => {
@@ -20,6 +24,7 @@ const sanitizeFilename = (originalName) => {
 const storage = multerS3({
   s3,
   bucket: process.env.AWS_BUCKET_NAME,
+  acl: 'public-read',
   contentType: multerS3.AUTO_CONTENT_TYPE,
   key: function (req, file, cb) {
     cb(null, sanitizeFilename(file.originalname));

@@ -18,7 +18,7 @@ app.use(express.json());
 const corsOptions = {
   origin: [
     "http://localhost:3000",
-    "http://monkmaze-s3.s3-website.ap-south-1.amazonaws.com/",
+    "http://monkmaze-s3.s3-website.ap-south-1.amazonaws.com",
     "http://ec2-13-245-5-146.af-south-1.compute.amazonaws.com:3000",
     "http://welkome.ca",
     "http://www.welkome.ca",

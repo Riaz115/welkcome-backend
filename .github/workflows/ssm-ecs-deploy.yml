@@ -1,0 +1,44 @@
+name: Sync secrets to SSM and redeploy ECS
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+
+      - name: Who am I
+        run: aws sts get-caller-identity
+
+      - name: Push app secrets to SSM (overwrite)
+        run: |
+          aws ssm put-parameter --name "monkmaze/aws_access_key" --value "${{ secrets.AWS_ACCESS_KEY_ID }}" --type "SecureString" --overwrite
+          aws ssm put-parameter --name "monkmaze/aws_secret_key" --value "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --type "SecureString" --overwrite
+          aws ssm put-parameter --name "monkmaze/s3_bucket_name" --value "${{ secrets.AWS_BUCKET_NAME }}" --type "String" --overwrite
+          aws ssm put-parameter --name "monkmaze/mongo_uri" --value "${{ secrets.MONGO_URI }}" --type "SecureString" --overwrite
+
+      - name: Force new ECS deployment
+        env:
+          ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+          ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+        run: |
+          if [ -z "$ECS_CLUSTER" ] || [ -z "$ECS_SERVICE" ]; then
+            echo "ECS_CLUSTER and ECS_SERVICE secrets must be set." >&2
+            exit 1
+          fi
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" --force-new-deployment | cat
+
+

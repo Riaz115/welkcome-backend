@@ -6,22 +6,33 @@ import {
     updateProduct,
     deleteProduct,
     getProductsByCategory,
-    getProductStats
+    getProductStats,
+    getProductBySlug,
+    getProductsByBrand,
+    searchProducts
 } from '../controllers/productController.js';
-import { uploadProductImages, handleUploadError } from '../middleware/upload.js';
+import { 
+    uploadProductMedia, 
+    uploadProductImages, 
+    uploadProductVideos,
+    handleUploadError 
+} from '../middleware/upload.js';
 
 const router = express.Router();
 
-// Product CRUD routes
-router.post('/', uploadProductImages, handleUploadError, createProduct); // Create new product with multi-image upload
-router.get('/', getAllProducts);                           // GET /api/product - Get all products with filtering & pagination
-router.get('/stats', getProductStats);                     // GET /api/product/stats - Get product statistics
-router.get('/:id', getProductById);                        // GET /api/product/:id - Get single product by ID
-router.put('/:id', uploadProductImages, handleUploadError, updateProduct); // Update product with optional image upload
-router.delete('/:id', deleteProduct);                      // DELETE /api/product/:id - Delete product
+router.post('/', uploadProductMedia, handleUploadError, createProduct);
+router.get('/', getAllProducts);
+router.get('/stats', getProductStats);
+router.get('/search', searchProducts);
+router.get('/slug/:slug', getProductBySlug);
+router.get('/:id', getProductById);
+router.put('/:id', uploadProductMedia, handleUploadError, updateProduct);
+router.delete('/:id', deleteProduct);
 
-// Category-based routes
-router.get('/category/:primeCategory/:category', getProductsByCategory);           // GET /api/products/category/Electronics/Phones
-router.get('/category/:primeCategory/:category/:subCategory', getProductsByCategory); // GET /api/products/category/Electronics/Phones/Smartphones
+router.get('/category/:primeCategory/:category', getProductsByCategory);
+router.get('/category/:primeCategory/:category/:subCategory', getProductsByCategory);
+router.get('/brand/:brandId', getProductsByBrand);
+
+router.post('/legacy', uploadProductImages, handleUploadError, createProduct);
 
 export default router;

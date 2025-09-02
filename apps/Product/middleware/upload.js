@@ -14,11 +14,11 @@ const s3 = new S3Client({
   } : undefined
 });
 
-const sanitizeFilename = (originalName) => {
+const sanitizeFilename = (originalName, folder = 'products') => {
   const name = path.basename(originalName, path.extname(originalName)).replace(/\s+/g, '_');
   const ext = path.extname(originalName);
   const timestamp = Date.now();
-  return `products/${name}-${timestamp}${ext}`;
+  return `${folder}/${name}-${timestamp}${ext}`;
 };
 
 const storage = multerS3({
@@ -31,7 +31,8 @@ const storage = multerS3({
   }
 });
 
-const fileFilter = (req, file, cb) => {
+// File filter for images
+const imageFileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
@@ -39,14 +40,67 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+// File filter for videos
+const videoFileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('video/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only video files are allowed'), false);
+  }
+};
+
+// File filter for both images and videos
+const mediaFileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image and video files are allowed'), false);
+  }
+};
+
+// Upload product images only
 export const uploadProductImages = multer({
   storage,
-  fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 }
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 }).array('images', 10);
 
+// Upload product videos only
+export const uploadProductVideos = multer({
+  storage,
+  fileFilter: videoFileFilter,
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+}).array('videos', 5);
+
+// Upload both images and videos
+export const uploadProductMedia = multer({
+  storage,
+  fileFilter: mediaFileFilter,
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+}).fields([
+  { name: 'images', maxCount: 10 },
+  { name: 'videos', maxCount: 5 }
+]);
+
+// Upload single video
+export const uploadProductVideo = multer({
+  storage,
+  fileFilter: videoFileFilter,
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+}).single('video');
+
+// Upload single image
+export const uploadProductImage = multer({
+  storage,
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+}).single('image');
+
 export const handleUploadError = (error, req, res, next) => {
-  if (error instanceof multer.MulterError || error.message === 'Only image files are allowed') {
+  if (error instanceof multer.MulterError || 
+      error.message === 'Only image files are allowed' ||
+      error.message === 'Only video files are allowed' ||
+      error.message === 'Only image and video files are allowed') {
     return res.status(400).json({
       success: false,
       message: error.message,
@@ -64,6 +118,11 @@ export const getS3ImageUrl = (key) => {
   const bucket = process.env.AWS_BUCKET_NAME;
   const region = process.env.AWS_REGION;
   return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+};
+
+// Helper function to get S3 URL for any file type
+export const getS3Url = (key) => {
+  return getS3ImageUrl(key);
 };
 
 

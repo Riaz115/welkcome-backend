@@ -36,7 +36,7 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, curl requests)
     if (!origin) return callback(null, true);
-    
+
     const allowedOrigins = [
       "http://localhost:3000",
       "http://monkmaze-s3.s3-website.ap-south-1.amazonaws.com",
@@ -47,14 +47,14 @@ const corsOptions = {
       "http://www.welkome.ca",
       "https://www.welkome.ca" // HTTPS add karo
     ];
-    
-    console.log('Request origin:', origin);
-    
+
+
+
     if (allowedOrigins.includes(origin)) {
-      console.log('Allowed by CORS:', origin);
+
       callback(null, true);
     } else {
-      console.log('Blocked by CORS:', origin);
+
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -73,7 +73,7 @@ app.use('/uploads', express.static('uploads'));
 // DB Connection
 const connectDb = async () => {
   try {
-    console.log(process.env.MONGO_URI,"here is")
+    console.log(process.env.MONGO_URI, "here is")
     await mongoose.connect(process.env.MONGO_URI);
     console.log("Database Connected Successfully!");
 
@@ -96,14 +96,14 @@ app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/product", productRoutes);
 app.use("/api/v1/seller", sellerRoutes);
 app.use("/api/v1/rider", riderRoutes);
-  app.use("/api/v1/categories", categoryRoutes);
-  app.use("/api/v1/brands", brandRoutes);
+app.use("/api/v1/categories", categoryRoutes);
+app.use("/api/v1/brands", brandRoutes);
 
-  app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
-  });
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
 
-  app.get("/", (req, res) => {
+app.get("/", (req, res) => {
   res.send("Server is working!");
 });
 

@@ -82,6 +82,132 @@ export const changeEmail = async (req, res) => {
 };
 
 
+export const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({ role: { $ne: 'admin' } })
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    console.error("Get all users error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching users"
+    });
+  }
+};
+
+export const blockUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    if (user.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot block admin users"
+      });
+    }
+
+    user.isBlocked = true;
+    user.blockedAt = new Date();
+    user.blockedBy = req.user._id;
+    user.blockReason = "Blocked by admin";
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "User blocked successfully",
+      data: {
+        userId: user._id,
+        isBlocked: user.isBlocked,
+        blockedAt: user.blockedAt
+      }
+    });
+  } catch (error) {
+    console.error("Block user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while blocking user"
+    });
+  }
+};
+
+export const getUserById = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId)
+      .select('-password -token -verificationToken')
+      .populate('blockedBy', 'firstName lastName email');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error("Get user by ID error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching user"
+    });
+  }
+};
+
+export const unblockUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    user.isBlocked = false;
+    user.blockedAt = null;
+    user.blockedBy = null;
+    user.blockReason = null;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "User unblocked successfully",
+      data: {
+        userId: user._id,
+        isBlocked: user.isBlocked
+      }
+    });
+  } catch (error) {
+    console.error("Unblock user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while unblocking user"
+    });
+  }
+};
+
 export const updateUserProfile = async (req, res) => {
   try {
     const userId = req.user._id;

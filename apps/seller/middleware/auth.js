@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
+import User from '../../user/models/userModel.js';
 import Seller from '../models/Seller.js';
 
-// Verify JWT token
 export const verifyToken = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -15,73 +15,94 @@ export const verifyToken = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Get seller from database
-    const seller = await Seller.findById(decoded.id);
-    if (!seller || !seller.isActive) {
+    if (decoded.role === 'admin') {
+      const user = await User.findById(decoded.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(401).json({
+          success: false,
+          message: 'Admin not found'
+        });
+      }
+      
+      req.user = {
+        _id: user._id,
+        role: 'admin',
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName
+      };
+    } else if (decoded.role === 'seller') {
+      const seller = await Seller.findById(decoded.userId);
+      if (!seller) {
+        return res.status(401).json({
+          success: false,
+          message: 'Seller not found'
+        });
+      }
+      
+      req.user = {
+        _id: seller._id,
+        role: 'seller',
+        email: seller.email,
+        name: seller.name,
+        verificationStatus: seller.verificationStatus
+      };
+    } else {
       return res.status(401).json({
         success: false,
-        message: 'Invalid token or seller account deactivated.'
-      });
-    }
-
-    req.seller = seller;
-    next();
-  } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token.'
-      });
-    } else if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token expired.'
+        message: 'Invalid token'
       });
     }
     
-    return res.status(500).json({
+    next();
+  } catch (error) {
+    res.status(401).json({
       success: false,
-      message: 'Server error during authentication.'
+      message: 'Invalid token'
     });
   }
 };
 
-// Check if user is admin
 export const requireAdmin = (req, res, next) => {
-  if (req.seller.role !== 'admin') {
+  if (req.user.role !== 'admin') {
     return res.status(403).json({
       success: false,
-      message: 'Access denied. Admin privileges required.'
+      message: 'Access denied. Admin role required.'
     });
   }
   next();
 };
 
-// Check if user can access the resource (own profile or admin)
-export const checkResourceAccess = (req, res, next) => {
-  const requestedId = req.params.id;
-  
-  // Admin can access any resource
-  if (req.seller.role === 'admin') {
-    return next();
-  }
-  
-  // Seller can only access their own resources
-  if (req.seller._id.toString() !== requestedId) {
+export const requireSeller = (req, res, next) => {
+  if (req.user.role !== 'seller') {
     return res.status(403).json({
       success: false,
-      message: 'Access denied. You can only access your own resources.'
+      message: 'Access denied. Seller role required.'
     });
   }
   
+  if (req.user.verificationStatus !== 'approved') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Seller account not approved.'
+    });
+  }
   next();
 };
 
-// Generate JWT token
-export const generateToken = (sellerId) => {
-  return jwt.sign(
-    { id: sellerId },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-  );
-}; 
+export const requireAdminOrSeller = (req, res, next) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'seller') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Admin or Seller role required.'
+    });
+  }
+  
+  if (req.user.role === 'seller' && req.user.verificationStatus !== 'approved') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Seller account not approved.'
+    });
+  }
+  next();
+};

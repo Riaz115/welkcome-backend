@@ -1,4 +1,5 @@
 import User from "../../user/models/userModel.js";
+import Seller from "../../seller/models/Seller.js";
 import { generateJwtToken } from "../services/generateJWT.js";
 import { hashPassword, comparePassword } from "../services/bcrypt.js";
 import crypto from "crypto";
@@ -26,9 +27,7 @@ export const signup = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Check for verified OTP record (identifier can be email or phone)
     const fullPhoneNumber = dialCode + phone;
-    console.log(fullPhoneNumber);
     
     const otpRecord = await OTP.findOne({
       $or: [
@@ -46,10 +45,7 @@ export const signup = async (req, res) => {
       });
     }
 
-    // Hash the password
     const hashedPassword = await hashPassword(password);
-
-    // Create the user
     const user = await User.create({
       firstName,
       lastName,
@@ -61,12 +57,9 @@ export const signup = async (req, res) => {
       dob,
     });
 
-    // Generate token using user._id
-    const token = await generateJwtToken(user._id);
-
-
+    const token = await generateJwtToken(user._id, user.email, 'user');
     user.token = token;
-    await user.save(); //  This will saves the token to DB
+    await user.save();
 
     res.status(201).json({
       status: true,
@@ -80,54 +73,13 @@ export const signup = async (req, res) => {
   }
 };
 
-// export const login = async (req, res) => {
-//   try {
-//     const { emailOrPhone, password } = req.body;
-//
-//     // Find user by email, phone, or full phone number (dialCode + phone)
-//     const user = await User.findOne({
-//       $or: [
-//         { email: emailOrPhone }, // Email match
-//         { phone: emailOrPhone }, // Exact phone match
-//         { $expr: { $eq: [{ $concat: ["$dialCode", "$phone"] }, emailOrPhone] } } // dialCode + phone match
-//       ],t
-//     });
-//
-//     if (!user) {
-//       return res.status(404).json({ message: "User not found" });
-//     }
-//
-//     // Compare password
-//     const isPasswordMatch = await comparePassword(password, user.password);
-//     if (!isPasswordMatch) {
-//       return res.status(401).json({ message: "Invalid credentials" });
-//     }
-//
-//     // Generate JWT token
-//     const token = await generateJwtToken(user._id);
-//
-//     user.token = token;
-//     await user.save();
-//
-//     res.status(200).json({
-//       status: true,
-//       message: "Login successful",
-//       user,
-//     });
-//   } catch (error) {
-//     res.status(400).json({
-//       message: error.message,
-//     });
-//   }
-// };
 
 export const login = async (req, res) => {
   try {
     const { emailOrPhone, password } = req.body;
 
-    // Validate phone format: if it's a 10-digit number without dial code, reject it
     const isPlainPhone = /^[0-9]{10}$/.test(emailOrPhone);
-    const isDialCodePhone = /^\+\d{1,4}\d{6,14}$/.test(emailOrPhone); // e.g., +917679074483
+    const isDialCodePhone = /^\+\d{1,4}\d{6,14}$/.test(emailOrPhone);
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailOrPhone);
 
     if (isPlainPhone) {
@@ -144,7 +96,6 @@ export const login = async (req, res) => {
       });
     }
 
-    // Proceed to find user
     const user = await User.findOne({
       $or: [
         { email: emailOrPhone },
@@ -157,14 +108,12 @@ export const login = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // // Check password
-    // const isPasswordMatch = await comparePassword(password, user.password);
-    // if (!isPasswordMatch) {
-    //   return res.status(401).json({ message: "Invalid credentials" });
-    // }
+    const isPasswordMatch = password === user.password
+    if (!isPasswordMatch) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-    // Generate and assign token
-    const token = await generateJwtToken(user._id);
+    const token = await generateJwtToken(user._id, user.email, 'user');
     user.token = token;
     await user.save();
 
@@ -184,79 +133,6 @@ export const login = async (req, res) => {
 
 
 
-// export const sendOTP = async (req, res) => {
-//   try {
-//     const { identifier, purpose} = req.body;
-//
-//     if (!identifier || !purpose) {
-//       return res.status(400).json({
-//         status: false,
-//         message: "Identifier and purpose are required.",
-//       });
-//     }
-//
-//     // Check if identifier exists for specific purposes
-//     const purposesRequiringExistingUser = ["reset-password"];
-//
-//     if (purposesRequiringExistingUser.includes(purpose)) {
-//       let userExists = false;
-//
-//       if (identifier.includes("@")) {
-//         // Check if email exists
-//         userExists = await User.findOne({ email: identifier });
-//       } else {
-//         // Check if phone exists - try multiple ways
-//         userExists = await User.findOne({
-//           $or: [
-//             { phone: identifier }, // Exact match
-//             { $expr: { $eq: [{ $concat: ["$dialCode", "$phone"] }, identifier] } } // dialCode + phone
-//           ]
-//         });
-//       }
-//
-//       if (!userExists) {
-//         return res.status(404).json({
-//           status: false,
-//           message: "Email or phone does not exist.",
-//         });
-//       }
-//     }
-//
-//     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-//     const hashedOTP = crypto.createHash("sha256").update(otp).digest("hex");
-//
-//     await OTP.findOneAndUpdate(
-//       { identifier, purpose },
-//       {
-//         otp: hashedOTP,
-//         verified: false,
-//         createdAt: new Date(),
-//       },
-//       {
-//         upsert: true, // insert if not found
-//         new: true,
-//         setDefaultsOnInsert: true,
-//       }
-//     );
-//
-//     if (identifier.includes("@")) {
-//       await sendEmail(identifier, otp);
-//     } else {
-//       await sendSMS(identifier, otp);
-//     }
-//
-//     return res.status(200).json({
-//       status: true,
-//       message: "OTP sent successfully",
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       status: false,
-//       message: "Failed to send OTP",
-//       error: error.message,
-//     });
-//   }
-// };
 
 export const sendOTP = async (req, res) => {
   try {
@@ -269,7 +145,6 @@ export const sendOTP = async (req, res) => {
       });
     }
 
-    // === RESET PASSWORD: Check if user exists ===
     if (purpose === "reset-password") {
       const user = identifier.includes("@")
           ? await User.findOne({ email: identifier })
@@ -288,10 +163,8 @@ export const sendOTP = async (req, res) => {
       }
     }
 
-    // === SIGNUP: Check for duplicate email only if identifier is phone ===
     if (purpose === "signup") {
       if (!identifier.includes("@")) {
-        // It's a phone number
         const existingPhoneUser = await User.findOne({
           $or: [
             { phone: identifier },
@@ -316,7 +189,6 @@ export const sendOTP = async (req, res) => {
           }
         }
       } else {
-        // If identifier is email
         const existingEmailUser = await User.findOne({ email: identifier });
         if (existingEmailUser) {
           return res.status(400).json({
@@ -327,7 +199,6 @@ export const sendOTP = async (req, res) => {
       }
     }
 
-    // === OTP GENERATION ===
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const hashedOTP = crypto.createHash("sha256").update(otp).digest("hex");
 
@@ -393,7 +264,6 @@ export const verifyOTP = async (req, res) => {
       });
     }
 
-    // Optional: check if already verified
     if (otpRecord.verified) {
       return res.status(200).json({
         status: true,
@@ -430,7 +300,6 @@ export const verifyEmail = async (req, res) => {
 
     res.send("Email verified! You can now log in.");
   } catch (error) {
-    console.error("Email verification failed:", error);
     res.status(500).send("Something went wrong");
   }
 };
@@ -448,9 +317,8 @@ export const firebaseSync = async (req, res) => {
 
     let user = await User.findOne({ email });
 
-    // ✅ User exists and is verified → Login
     if (user && user.emailVerified) {
-      const token = await generateJwtToken(user._id);
+      const token = await generateJwtToken(user._id, user.email, 'user');
       return res.status(200).json({
         success: true,
         token,
@@ -477,7 +345,6 @@ export const firebaseSync = async (req, res) => {
       });
     }
 
-    // ⚠️ User exists but not verified → Update and re-send verification
     if (user && !user.emailVerified) {
       const verificationToken = crypto.randomBytes(32).toString("hex");
 
@@ -496,7 +363,6 @@ export const firebaseSync = async (req, res) => {
       });
     }
 
-    // 🆕 New user → Create full user object
     const verificationToken = crypto.randomBytes(32).toString("hex");
 
     const newUser = await User.create({
@@ -509,7 +375,6 @@ export const firebaseSync = async (req, res) => {
       password: null,
       verificationToken,
 
-      // Explicitly default schema fields
       firstName: null,
       lastName: null,
       phone: null,
@@ -537,7 +402,6 @@ export const firebaseSync = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Firebase sync error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -556,7 +420,6 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    // Check for verified OTP record
     const otpRecord = await OTP.findOne({
       identifier,
       purpose: "reset-password",
@@ -570,17 +433,14 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    // Find user by email or phone
     let user;
     if (identifier.includes("@")) {
-      // Find by email
       user = await User.findOne({ email: identifier });
     } else {
-      // Find by phone - try multiple ways
       user = await User.findOne({
         $or: [
-          { phone: identifier }, // Exact match
-          { $expr: { $eq: [{ $concat: ["$dialCode", "$phone"] }, identifier] } } // dialCode + phone
+          { phone: identifier },
+          { $expr: { $eq: [{ $concat: ["$dialCode", "$phone"] }, identifier] } }
         ]
       });
     }
@@ -592,13 +452,9 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    // Hash the new password
     const hashedPassword = await hashPassword(newPassword);
     user.password = hashedPassword;
-
     await user.save();
-
-    // Delete OTP after password reset
     await OTP.deleteOne({ _id: otpRecord._id });
 
     return res.status(200).json({
@@ -606,10 +462,159 @@ export const resetPassword = async (req, res) => {
       message: "Password has been reset successfully.",
     });
   } catch (error) {
-    console.error("Reset password error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
+    });
+  }
+};
+
+export const userLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required"
+      });
+    }
+
+    const user = await User.findOne({ email, role: 'user' });
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password"
+      });
+    }
+
+    const isPasswordValid = await comparePassword(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password"
+      });
+    }
+
+    const token = await generateJwtToken(user._id, user.email, 'user');
+
+    res.json({
+      success: true,
+      message: "User login successful",
+      data: {
+        token,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: 'user'
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server error during login"
+    });
+  }
+};
+
+export const adminSellerLogin = async (req, res) => {
+  try {
+    const { emailOrPhone, password } = req.body;
+
+    if (!emailOrPhone || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email/Phone and password are required"
+      });
+    }
+
+    const admin = await User.findOne({ email: emailOrPhone, role: 'admin' });
+    if (admin) {
+      // const isPasswordValid = await comparePassword(password, admin.password);
+      const isPasswordValid = password === admin.password
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid credentials'
+        });
+      }
+
+      const token = await generateJwtToken(admin._id, admin.email, 'admin');
+      
+      return res.json({
+        success: true,
+        message: 'Admin login successful',
+        data: {
+          token,
+          user: {
+            id: admin._id,
+            firstName: admin.firstName,
+            lastName: admin.lastName,
+            email: admin.email,
+            role: 'admin'
+          }
+        }
+      });
+    }
+
+    const seller = await Seller.findOne({ email: emailOrPhone });
+    if (seller) {
+      const isPasswordValid = await comparePassword(password, seller.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid credentials"
+        });
+      }
+
+      if (seller.verificationStatus === 'rejected') {
+        return res.status(403).json({
+          success: false,
+          message: "Your seller account has been rejected",
+          rejectionReason: seller.rejectionReason
+        });
+      }
+      
+      if (seller.verificationStatus === 'pending') {
+        return res.status(403).json({
+          success: false,
+          message: "Your seller account is pending approval. Please wait for admin approval."
+        });
+      }
+
+      if (seller.verificationStatus === 'approved') {
+        const token = await generateJwtToken(seller._id, seller.email, 'seller');
+
+        return res.json({
+          success: true,
+          message: "Seller login successful",
+          data: {
+            token,
+            user: {
+              id: seller._id,
+              name: seller.name,
+              email: seller.email,
+              businessName: seller.businessName,
+              role: 'seller',
+              verificationStatus: seller.verificationStatus
+            }
+          }
+        });
+      }
+    }
+
+    res.status(401).json({
+      success: false,
+      message: "Invalid credentials"
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server error during login"
     });
   }
 };

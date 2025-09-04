@@ -87,6 +87,36 @@ const userSchema = new mongoose.Schema(
     verificationToken : {
       type: String,
       default: null, // For email verification
+    },
+    sellerVerificationStatus: {
+      type: String,
+      enum: ['not_applied', 'pending', 'verified', 'rejected'],
+      default: 'not_applied'
+    },
+    sellerRejectionReason: {
+      type: String,
+      default: null
+    },
+    isBlocked: {
+      type: Boolean,
+      default: false
+    },
+    blockedAt: {
+      type: Date,
+      default: null
+    },
+    blockedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    blockReason: {
+      type: String,
+      default: null
+    },
+    role: {
+      type: String,
+      default: 'user'
     }
   },
   {

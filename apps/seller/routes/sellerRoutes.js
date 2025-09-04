@@ -1,43 +1,47 @@
 import express from 'express';
 import {
-  registerSeller,
-  loginSeller,
-  getSellerProfile,
-  updateSellerProfile,
-  uploadDocuments,
-  updateVerificationStatus,
-  getVerificationStatus
+  becomeSeller,
+  getAllSellers,
+  getSellerById,
+  getMySellerProfile,
+  updateSeller,
+  deleteSeller,
+  verifySeller,
+  getSellerStats,
+  getPendingSellers,
+  approveSeller,
+  rejectSeller,
+  clearAllSellers,
+  testSellerCreation
 } from '../controllers/sellerController.js';
-import {
-  verifyToken,
-  requireAdmin,
-  checkResourceAccess
-} from '../middleware/auth.js';
-import {
-  uploadSellerDocs,
-  uploadSingleDoc,
-  handleUploadError,
-  validateRequiredFiles
-} from '../middleware/upload.js';
+import { verifyToken, requireAdmin } from '../middleware/auth.js';
+import { uploadSellerDocs, handleUploadError, validateRequiredFiles } from '../middleware/upload.js';
+import { parseFormData, validateBecomeSeller, validateUpdateSeller, validateVerifySeller } from '../middleware/validation.js';
 
 const router = express.Router();
 
 // Public routes
-router.post('/register', uploadSellerDocs, handleUploadError, validateRequiredFiles, registerSeller);
-router.post('/login', loginSeller);
-router.get('/status/:id', getVerificationStatus);
+router.get('/stats', getSellerStats);
+router.get('/test', testSellerCreation);
+router.get('/:id', getSellerById);
 
 // Protected routes - require authentication
 router.use(verifyToken);
 
-// Seller profile routes - protected by resource access check
-router.get('/profile/:id', checkResourceAccess, getSellerProfile);
-router.put('/profile/:id', checkResourceAccess, updateSellerProfile);
+// User routes
+router.post('/become-seller', uploadSellerDocs, parseFormData, validateRequiredFiles, validateBecomeSeller, handleUploadError, becomeSeller);
+router.get('/profile/me', getMySellerProfile);
+router.put('/profile/me', uploadSellerDocs, parseFormData, validateUpdateSeller, handleUploadError, updateSeller);
+router.delete('/profile/me', deleteSeller);
 
-// Document upload route - sellers can only upload to their own account
-router.post('/upload-docs', uploadSingleDoc, handleUploadError, uploadDocuments);
-
-// Admin only routes
-router.patch('/status', requireAdmin, updateVerificationStatus);
+// Admin routes
+router.get('/', requireAdmin, getAllSellers);
+router.get('/pending', requireAdmin, getPendingSellers);
+router.delete('/clear-all', requireAdmin, clearAllSellers);
+router.patch('/:sellerId/approve', requireAdmin, approveSeller);
+router.patch('/:sellerId/reject', requireAdmin, rejectSeller);
+router.put('/:id', requireAdmin, uploadSellerDocs, parseFormData, validateUpdateSeller, handleUploadError, updateSeller);
+router.delete('/:id', requireAdmin, deleteSeller);
+router.patch('/:id/verify', requireAdmin, validateVerifySeller, verifySeller);
 
 export default router; 

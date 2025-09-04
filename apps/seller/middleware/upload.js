@@ -1,79 +1,81 @@
 import multer from 'multer';
+import multerS3 from 'multer-s3';
+import { S3Client } from '@aws-sdk/client-s3';
 import path from 'path';
-import fs from 'fs';
+import dotenv from 'dotenv';
 
-// Ensure uploads directory exists
-const ensureUploadDir = (dir) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-};
+dotenv.config();
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(process.cwd(), 'uploads', 'seller-documents');
-    ensureUploadDir(uploadPath);
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename with original extension
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const fileExtension = path.extname(file.originalname);
-    const fileName = `${file.fieldname}-${uniqueSuffix}${fileExtension}`;
-    cb(null, fileName);
-  }
+const s3 = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY ? {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  } : undefined
 });
 
-// File filter function
-const fileFilter = (req, file, cb) => {
-  // Allowed file types
-  const allowedTypes = [
-    'image/jpeg',
-    'image/jpg',
-    'image/png',
-    'application/pdf'
-  ];
-  
-  // Check file type
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Only JPEG, PNG, and PDF files are allowed.'), false);
-  }
+const getS3Key = (originalName) => {
+  const name = path.basename(originalName, path.extname(originalName)).replace(/\s+/g, '_');
+  const ext = path.extname(originalName);
+  const timestamp = Date.now();
+  return `seller_documents/${name}-${timestamp}${ext}`;
 };
 
-// Configure multer
 const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit per file
-    files: 2 // Maximum 2 files
+  storage: multerS3({
+    s3,
+    bucket: process.env.AWS_BUCKET_NAME,
+    acl: 'public-read',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      const key = getS3Key(file.originalname);
+      cb(null, key);
+    }
+  }),
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, PDF, and Word documents are allowed.'), false);
+    }
   },
-  fileFilter: fileFilter
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 6
+  }
 });
 
-// Upload middleware for seller registration (ID proof and store license)
 export const uploadSellerDocs = upload.fields([
+  { name: 'businessRegistrationCertificate', maxCount: 1 },
+  { name: 'bankStatement', maxCount: 1 },
   { name: 'idProof', maxCount: 1 },
-  { name: 'storeLicense', maxCount: 1 }
+  { name: 'tradingLicense', maxCount: 1 }
 ]);
 
-// Upload middleware for document updates
+export const uploadProductImages = upload.array('images', 5);
+
 export const uploadSingleDoc = upload.single('document');
 
-// Error handling middleware for multer
 export const handleUploadError = (error, req, res, next) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
-        message: 'File size too large. Maximum size is 5MB per file.'
+        message: 'File size too large. Maximum size is 10MB per file.'
       });
     } else if (error.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({
         success: false,
-        message: 'Too many files. Maximum 2 files allowed.'
+        message: 'Too many files. Maximum 6 files allowed.'
       });
     } else if (error.code === 'LIMIT_UNEXPECTED_FILE') {
       return res.status(400).json({
@@ -96,26 +98,35 @@ export const handleUploadError = (error, req, res, next) => {
   next();
 };
 
-// Utility function to delete file
-export const deleteFile = (filePath) => {
+export const deleteFile = async (fileKey) => {
   try {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      return true;
-    }
+    const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+    const command = new DeleteObjectCommand({
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: fileKey
+    });
+    await s3.send(command);
+    return true;
   } catch (error) {
-    console.error('Error deleting file:', error);
+    return false;
   }
-  return false;
 };
 
-// Validate required files for registration
 export const validateRequiredFiles = (req, res, next) => {
-  if (!req.files || !req.files.idProof || !req.files.storeLicense) {
+  const requiredDocs = ['businessRegistrationCertificate', 'idProof'];
+  const missingDocs = [];
+  
+  requiredDocs.forEach(docType => {
+    if (!req.files || !req.files[docType]) {
+      missingDocs.push(docType);
+    }
+  });
+  
+  if (missingDocs.length > 0) {
     return res.status(400).json({
       success: false,
-      message: 'Both ID proof and store license documents are required.'
+      message: `Missing required documents: ${missingDocs.join(', ')}`
     });
   }
   next();
-}; 
+};

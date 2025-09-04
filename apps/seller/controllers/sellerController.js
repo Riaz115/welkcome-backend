@@ -1,407 +1,467 @@
 import Seller from "../models/Seller.js";
-import { generateToken } from "../middleware/auth.js";
 import { deleteFile } from "../middleware/upload.js";
-import path from "path";
+import bcrypt from 'bcryptjs';
 
-// @desc    Register a new seller
-// @route   POST /api/sellers/register
-// @access  Public
-export const registerSeller = async (req, res) => {
+export const becomeSeller = async (req, res) => {
   try {
     const {
-      storeName,
-      ownerName,
+      name,
       email,
       phone,
       password,
+      businessName,
+      businessType,
       businessRegistrationNumber,
-      tinNumber,
-      address,
+      businessAddress,
+      contactPerson,
       bankDetails,
+      businessEmail,
+      businessDescription,
+      website,
+      socialMedia,
+      paymentMethods,
+      deliveryOptions,
+      tinNumber
     } = req.body;
 
-    // Check if seller already exists
     const existingSeller = await Seller.findOne({
       $or: [
-        { email },
-        { phone },
-        { businessRegistrationNumber },
-        { tinNumber },
-      ],
+        { email: email.toLowerCase().trim() },
+        { businessRegistrationNumber: businessRegistrationNumber.trim() }
+      ]
     });
 
     if (existingSeller) {
-      // Clean up uploaded files if seller exists
       if (req.files) {
-        Object.values(req.files)
-          .flat()
-          .forEach((file) => {
-            deleteFile(file.path);
-          });
+        Object.values(req.files).flat().forEach((file) => {
+          if (file.key) {
+            deleteFile(file.key);
+          }
+        });
       }
-
       return res.status(400).json({
         success: false,
-        message:
-          "Seller with this email, phone, business registration number, or TIN already exists.",
+        message: "Seller with this email or business registration number already exists",
+        details: {
+          existingEmail: existingSeller.email,
+          existingBusinessRegistrationNumber: existingSeller.businessRegistrationNumber
+        }
       });
     }
 
-    // Parse address and bankDetails if they're strings
-    const parsedAddress =
-      typeof address === "string" ? JSON.parse(address) : address;
-    const parsedBankDetails =
-      typeof bankDetails === "string" ? JSON.parse(bankDetails) : bankDetails;
+    const parsedBusinessAddress = businessAddress ? (typeof businessAddress === "string" 
+      ? JSON.parse(businessAddress) 
+      : businessAddress) : {};
+    const parsedContactPerson = contactPerson ? (typeof contactPerson === "string" 
+      ? JSON.parse(contactPerson) 
+      : contactPerson) : {};
+    const parsedBankDetails = bankDetails ? (typeof bankDetails === "string" 
+      ? JSON.parse(bankDetails) 
+      : bankDetails) : {};
+    const parsedSocialMedia = socialMedia ? (typeof socialMedia === "string" 
+      ? JSON.parse(socialMedia) 
+      : socialMedia) : {};
+    const parsedPaymentMethods = paymentMethods ? (typeof paymentMethods === "string" 
+      ? JSON.parse(paymentMethods) 
+      : paymentMethods) : [];
+    const parsedDeliveryOptions = deliveryOptions ? (typeof deliveryOptions === "string" 
+      ? JSON.parse(deliveryOptions) 
+      : deliveryOptions) : [];
 
-    // Create seller object
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
     const sellerData = {
-      storeName,
-      ownerName,
+      name,
       email,
       phone,
-      password,
+      password: hashedPassword,
+      businessName,
+      businessType,
       businessRegistrationNumber,
-      tinNumber,
-      address: parsedAddress,
+      businessAddress: parsedBusinessAddress,
+      contactPerson: parsedContactPerson,
       bankDetails: parsedBankDetails,
+      businessEmail,
+      businessDescription,
+      website,
+      socialMedia: parsedSocialMedia,
+      paymentMethods: parsedPaymentMethods,
+      deliveryOptions: parsedDeliveryOptions,
+      verificationStatus: 'pending'
     };
 
-    // Add document paths if files were uploaded
     if (req.files) {
       sellerData.documents = {};
-
-      if (req.files.idProof) {
-        sellerData.documents.idProof = {
-          filename: req.files.idProof[0].filename,
-          path: req.files.idProof[0].path,
-        };
-      }
-
-      if (req.files.storeLicense) {
-        sellerData.documents.storeLicense = {
-          filename: req.files.storeLicense[0].filename,
-          path: req.files.storeLicense[0].path,
-        };
-      }
+      const documentTypes = [
+        'businessRegistrationCertificate', 
+        'bankStatement', 
+        'idProof',
+        'tradingLicense'
+      ];
+      
+      documentTypes.forEach(docType => {
+        if (req.files[docType]) {
+          sellerData.documents[docType] = {
+            filename: req.files[docType][0].originalname,
+            path: req.files[docType][0].location,
+            key: req.files[docType][0].key
+          };
+        }
+      });
     }
 
     const seller = new Seller(sellerData);
-    await seller.save();
-
-    // Generate token
-    const token = generateToken(seller._id);
+    
+    try {
+      await seller.save();
+    } catch (saveError) {
+      if (req.files) {
+        Object.values(req.files).flat().forEach((file) => {
+          if (file.key) {
+            deleteFile(file.key);
+          }
+        });
+      }
+      
+      if (saveError.code === 11000) {
+        const field = Object.keys(saveError.keyValue)[0];
+        return res.status(400).json({
+          success: false,
+          message: `${field} already exists`,
+          details: {
+            field: field,
+            value: saveError.keyValue[field]
+          }
+        });
+      }
+      
+      throw saveError;
+    }
 
     res.status(201).json({
       success: true,
-      message: "Seller registered successfully",
-      data: {
-        seller: seller.getPublicProfile(),
-        token,
-      },
+      message: "Seller application submitted successfully. Your application is pending approval.",
+      data: seller.getPublicProfile()
     });
   } catch (error) {
-    // Clean up uploaded files on error
     if (req.files) {
-      Object.values(req.files)
-        .flat()
-        .forEach((file) => {
-          deleteFile(file.path);
-        });
+      Object.values(req.files).flat().forEach((file) => {
+        if (file.key) {
+          deleteFile(file.key);
+        }
+      });
     }
 
-    // Handle mongoose validation errors
     if (error.name === "ValidationError") {
       const errors = Object.values(error.errors).map((val) => val.message);
       return res.status(400).json({
         success: false,
         message: "Validation error",
-        errors,
+        errors
       });
     }
 
-    // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyValue)[0];
+      if (field === 'tinNumber') {
+        return res.status(400).json({
+          success: false,
+          message: "Seller with this email or business registration number already exists"
+        });
+      }
       return res.status(400).json({
         success: false,
         message: `${field} already exists`,
+        details: {
+          field: field,
+          value: error.keyValue[field]
+        }
       });
     }
-
-    console.error("Registration error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error during registration",
+      message: "Server error during seller application"
     });
   }
 };
 
-// @desc    Login seller
-// @route   POST /api/sellers/login
-// @access  Public
-export const loginSeller = async (req, res) => {
+export const getAllSellers = async (req, res) => {
   try {
-    const { identifier, password } = req.body; // identifier can be email or phone
+    const { page = 1, limit = 10, status, search, district, businessType } = req.query;
+    const query = {};
 
-    if (!identifier || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Email/phone and password are required",
-      });
+    if (status) {
+      query.verificationStatus = status;
     }
 
-    // Find seller by email or phone
-    const seller = await Seller.findOne({
-      $or: [{ email: identifier.toLowerCase() }, { phone: identifier }],
-    }).select("+password");
-
-    if (!seller) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid credentials",
-      });
+    if (district) {
+      query['businessAddress.district'] = { $regex: district, $options: 'i' };
     }
 
-    // Check password
-    const isMatch = await seller.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid credentials",
-      });
+    if (businessType) {
+      query.businessType = businessType;
     }
 
-    // Check if account is active
-    if (!seller.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: "Account is deactivated",
-      });
+    if (search) {
+      query.$or = [
+        { businessName: { $regex: search, $options: 'i' } },
+        { businessRegistrationNumber: { $regex: search, $options: 'i' } },
+        { 'contactPerson.name': { $regex: search, $options: 'i' } }
+      ];
     }
 
-    // Update last login
-    seller.lastLogin = new Date();
-    await seller.save();
+    const sellers = await Seller.find(query)
+      .populate('verifiedBy', 'firstName lastName')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
 
-    // Generate token
-    const token = generateToken(seller._id);
+    const total = await Seller.countDocuments(query);
+
+    const sellersWithDocs = sellers.map(seller => {
+      const sellerObj = seller.toObject();
+      delete sellerObj.password;
+      delete sellerObj.rejectionReason;
+      return sellerObj;
+    });
 
     res.json({
       success: true,
-      message: "Login successful",
       data: {
-        seller: seller.getPublicProfile(),
-        token,
-      },
+        sellers: sellersWithDocs,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalSellers: total,
+          hasNext: page < Math.ceil(total / limit),
+          hasPrev: page > 1
+        }
+      }
     });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("Get all sellers error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error during login",
+      message: "Server error while fetching sellers"
     });
   }
 };
 
-// @desc    Get seller profile
-// @route   GET /api/sellers/profile/:id
-// @access  Private
-export const getSellerProfile = async (req, res) => {
+export const getSellerById = async (req, res) => {
   try {
-    const sellerId = req.params.id;
+    const { id } = req.params;
 
-    const seller = await Seller.findById(sellerId);
+    const seller = await Seller.findById(id)
+      .populate('verifiedBy', 'firstName lastName')
+;
+
     if (!seller) {
       return res.status(404).json({
         success: false,
-        message: "Seller not found",
+        message: "Seller not found"
+      });
+    }
+
+    const sellerObj = seller.toObject();
+    delete sellerObj.password;
+    delete sellerObj.rejectionReason;
+
+    res.json({
+      success: true,
+      data: sellerObj
+    });
+  } catch (error) {
+    console.error("Get seller by ID error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching seller"
+    });
+  }
+};
+
+export const getMySellerProfile = async (req, res) => {
+  try {
+    const { email } = req.body; // Get email from request body
+
+    const seller = await Seller.findOne({ email })
+;
+
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller profile not found"
       });
     }
 
     res.json({
       success: true,
-      data: seller.getPublicProfile(),
+      data: seller
     });
   } catch (error) {
-    console.error("Get profile error:", error);
+    console.error("Get my seller profile error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error while fetching profile",
+      message: "Server error while fetching seller profile"
     });
   }
 };
 
-// @desc    Update seller profile
-// @route   PUT /api/sellers/profile/:id
-// @access  Private
-export const updateSellerProfile = async (req, res) => {
+export const updateSeller = async (req, res) => {
   try {
-    const sellerId = req.params.id;
+    const { id } = req.params;
     const updates = req.body;
 
-    // Remove sensitive fields that shouldn't be updated via this endpoint
-    delete updates.password;
-    delete updates.email;
-    delete updates.phone;
     delete updates.businessRegistrationNumber;
-    delete updates.tinNumber;
     delete updates.verificationStatus;
-    delete updates.role;
-    delete updates.documents;
+    delete updates.verifiedAt;
+    delete updates.verifiedBy;
 
-    const seller = await Seller.findById(sellerId);
+    const seller = await Seller.findById(id);
     if (!seller) {
       return res.status(404).json({
         success: false,
-        message: "Seller not found",
+        message: "Seller not found"
       });
     }
 
-    // Update seller
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can update seller profiles"
+      });
+    }
+
+    if (req.files) {
+      const documentTypes = [
+        'businessRegistrationCertificate', 
+        'bankStatement', 
+        'idProof',
+        'tradingLicense'
+      ];
+      
+      documentTypes.forEach(docType => {
+        if (req.files[docType]) {
+          if (seller.documents[docType] && seller.documents[docType].key) {
+            deleteFile(seller.documents[docType].key);
+          }
+          seller.documents[docType] = {
+            filename: req.files[docType][0].originalname,
+            path: req.files[docType][0].location,
+            key: req.files[docType][0].key
+          };
+        }
+      });
+    }
+
     Object.assign(seller, updates);
     await seller.save();
 
     res.json({
       success: true,
-      message: "Profile updated successfully",
-      data: seller.getPublicProfile(),
+      message: "Seller updated successfully",
+      data: seller.getPublicProfile()
     });
   } catch (error) {
+    if (req.files) {
+      Object.values(req.files).flat().forEach((file) => {
+        if (file.key) {
+          deleteFile(file.key);
+        }
+      });
+    }
+
     if (error.name === "ValidationError") {
       const errors = Object.values(error.errors).map((val) => val.message);
       return res.status(400).json({
         success: false,
         message: "Validation error",
-        errors,
+        errors
       });
     }
 
-    console.error("Update profile error:", error);
+    console.error("Update seller error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error while updating profile",
+      message: "Server error while updating seller"
     });
   }
 };
 
-// @desc    Upload/replace KYC documents
-// @route   POST /api/sellers/upload-docs
-// @access  Private
-export const uploadDocuments = async (req, res) => {
+export const deleteSeller = async (req, res) => {
   try {
-    const { docType } = req.body; // 'idProof' or 'storeLicense'
-    const sellerId = req.seller._id;
+    const { id } = req.params;
 
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file uploaded",
-      });
-    }
-
-    if (!["idProof", "storeLicense"].includes(docType)) {
-      deleteFile(req.file.path);
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid document type. Must be "idProof" or "storeLicense"',
-      });
-    }
-
-    const seller = await Seller.findById(sellerId);
+    const seller = await Seller.findById(id);
     if (!seller) {
-      deleteFile(req.file.path);
       return res.status(404).json({
         success: false,
-        message: "Seller not found",
+        message: "Seller not found"
       });
     }
 
-    // Delete old file if exists
-    if (
-      seller.documents &&
-      seller.documents[docType] &&
-      seller.documents[docType].path
-    ) {
-      deleteFile(seller.documents[docType].path);
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can delete sellers"
+      });
     }
 
-    // Update document
-    if (!seller.documents) {
-      seller.documents = {};
+    if (seller.documents) {
+      Object.values(seller.documents).forEach(doc => {
+        if (doc && doc.key) {
+          deleteFile(doc.key);
+        }
+      });
     }
 
-    seller.documents[docType] = {
-      filename: req.file.filename,
-      path: req.file.path,
-      uploadedAt: new Date(),
-    };
-
-    // Reset verification status to pending if documents are re-uploaded
-    seller.verificationStatus = "pending";
-    seller.rejectionReason = undefined;
-
-    await seller.save();
+    await Seller.findByIdAndDelete(id);
 
     res.json({
       success: true,
-      message: `${docType} uploaded successfully`,
-      data: {
-        document: seller.documents[docType],
-        verificationStatus: seller.verificationStatus,
-      },
+      message: "Seller deleted successfully"
     });
   } catch (error) {
-    // Clean up uploaded file on error
-    if (req.file) {
-      deleteFile(req.file.path);
-    }
-
-    console.error("Upload documents error:", error);
+    console.error("Delete seller error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error while uploading document",
+      message: "Server error while deleting seller"
     });
   }
 };
 
-// @desc    Update seller verification status (Admin only)
-// @route   PATCH /api/sellers/status
-// @access  Private (Admin)
-export const updateVerificationStatus = async (req, res) => {
+export const verifySeller = async (req, res) => {
   try {
-    const { sellerId, status, rejectionReason } = req.body;
+    const { id } = req.params;
+    const { status, rejectionReason } = req.body;
 
-    if (!sellerId || !status) {
+    if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: "Seller ID and status are required",
+        message: "Status must be 'approved' or 'rejected'"
       });
     }
 
-    if (!["pending", "verified", "rejected"].includes(status)) {
+    if (status === 'rejected' && !rejectionReason) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status. Must be "pending", "verified", or "rejected"',
+        message: "Rejection reason is required when rejecting"
       });
     }
 
-    if (status === "rejected" && !rejectionReason) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rejection reason is required when status is "rejected"',
-      });
-    }
-
-    const seller = await Seller.findById(sellerId);
+    const seller = await Seller.findById(id);
     if (!seller) {
       return res.status(404).json({
         success: false,
-        message: "Seller not found",
+        message: "Seller not found"
       });
     }
 
     seller.verificationStatus = status;
-    if (status === "rejected") {
+    seller.verifiedBy = req.user._id;
+    seller.verifiedAt = new Date();
+
+    if (status === 'rejected') {
       seller.rejectionReason = rejectionReason;
     } else {
       seller.rejectionReason = undefined;
@@ -411,53 +471,260 @@ export const updateVerificationStatus = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Verification status updated successfully",
+      message: `Seller ${status} successfully`,
       data: {
         sellerId: seller._id,
         verificationStatus: seller.verificationStatus,
         rejectionReason: seller.rejectionReason,
-      },
+        verifiedAt: seller.verifiedAt
+      }
     });
   } catch (error) {
-    console.error("Update status error:", error);
+    console.error("Verify seller error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error while updating verification status",
+      message: "Server error while verifying seller"
     });
   }
 };
 
-// @desc    Get seller verification status
-// @route   GET /api/sellers/status/:id
-// @access  Public
-export const getVerificationStatus = async (req, res) => {
+export const getSellerStats = async (req, res) => {
   try {
-    const sellerId = req.params.id;
+    const totalSellers = await Seller.countDocuments();
+    const pendingSellers = await Seller.countDocuments({ verificationStatus: 'pending' });
+    const approvedSellers = await Seller.countDocuments({ verificationStatus: 'approved' });
+    const rejectedSellers = await Seller.countDocuments({ verificationStatus: 'rejected' });
 
-    const seller = await Seller.findById(sellerId).select(
-      "verificationStatus rejectionReason storeName"
-    );
-    if (!seller) {
-      return res.status(404).json({
-        success: false,
-        message: "Seller not found",
-      });
-    }
+    const districtStats = await Seller.aggregate([
+      {
+        $group: {
+          _id: '$businessAddress.district',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    const businessTypeStats = await Seller.aggregate([
+      {
+        $group: {
+          _id: '$businessType',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
 
     res.json({
       success: true,
       data: {
-        sellerId: seller._id,
-        storeName: seller.storeName,
-        verificationStatus: seller.verificationStatus,
-        rejectionReason: seller.rejectionReason,
-      },
+        totalSellers,
+        pendingSellers,
+        approvedSellers,
+        rejectedSellers,
+        districtStats,
+        businessTypeStats
+      }
     });
   } catch (error) {
-    console.error("Get status error:", error);
+    console.error("Get seller stats error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error while fetching verification status",
+      message: "Server error while fetching seller statistics"
     });
   }
 };
+
+export const getPendingSellers = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+
+    const sellers = await Seller.find({ verificationStatus: 'pending' })
+      .sort({ createdAt: 1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Seller.countDocuments({ verificationStatus: 'pending' });
+
+    const sellersWithDocs = sellers.map(seller => {
+      const sellerObj = seller.toObject();
+      delete sellerObj.password;
+      delete sellerObj.rejectionReason;
+      return sellerObj;
+    });
+
+    res.json({
+      success: true,
+      data: {
+        sellers: sellersWithDocs,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalPending: total,
+          hasNext: page < Math.ceil(total / limit),
+          hasPrev: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Get pending sellers error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching pending sellers"
+    });
+  }
+};
+
+export const approveSeller = async (req, res) => {
+  try {
+    const { sellerId } = req.params;
+
+    const seller = await Seller.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found"
+      });
+    }
+
+    if (seller.verificationStatus === 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: "Seller is already approved"
+      });
+    }
+
+    seller.verificationStatus = 'approved';
+    seller.verifiedBy = req.user._id;
+    seller.verifiedAt = new Date();
+    seller.rejectionReason = null;
+
+    await seller.save();
+
+    res.json({
+      success: true,
+      message: "Seller approved successfully",
+      data: {
+        sellerId: seller._id,
+        businessName: seller.businessName,
+        verificationStatus: seller.verificationStatus,
+        verifiedAt: seller.verifiedAt
+      }
+    });
+  } catch (error) {
+    console.error("Approve seller error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while approving seller"
+    });
+  }
+};
+
+export const rejectSeller = async (req, res) => {
+  try {
+    const { sellerId } = req.params;
+    const { rejectionReason
+    } = req.body;
+
+    if (!rejectionReason) {
+      return res.status(400).json({
+        success: false,
+        message: "Rejection reason is required"
+      });
+    }
+
+    const seller = await Seller.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found"
+      });
+    }
+
+    if (seller.verificationStatus === 'rejected') {
+      return res.status(400).json({
+        success: false,
+        message: "Seller is already rejected"
+      });
+    }
+
+    seller.verificationStatus = 'rejected';
+    seller.verifiedBy = req.user._id;
+    seller.verifiedAt = new Date();
+    seller.rejectionReason = rejectionReason;
+
+    await seller.save();
+
+    res.json({
+      success: true,
+      message: "Seller rejected successfully",
+      data: {
+        sellerId: seller._id,
+        businessName: seller.businessName,
+        verificationStatus: seller.verificationStatus,
+        rejectionReason: seller.rejectionReason,
+        rejectedAt: seller.verifiedAt
+      }
+    });
+  } catch (error) {
+    console.error("Reject seller error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while rejecting seller"
+    });
+  }
+};
+
+export const testSellerCreation = async (req, res) => {
+  try {
+    const testData = {
+      name: 'Test Seller',
+      email: 'test@example.com',
+      phone: '+1234567890',
+      password: 'password123',
+      businessName: 'Test Business',
+      businessType: 'Test Type',
+      businessRegistrationNumber: 'TEST123',
+      verificationStatus: 'pending'
+    };
+    
+    const seller = new Seller(testData);
+    await seller.save();
+    await Seller.findByIdAndDelete(seller._id);
+    
+    res.json({
+      success: true,
+      message: 'Test seller creation successful'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Test seller creation failed',
+      error: error.message
+    });
+  }
+};
+
+export const clearAllSellers = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can clear all sellers"
+      });
+    }
+
+    const result = await Seller.deleteMany({});
+    
+    res.json({
+      success: true,
+      message: `Cleared ${result.deletedCount} sellers from database`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server error while clearing sellers"
+    });
+  }
+};
+

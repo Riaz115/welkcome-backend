@@ -1,37 +1,75 @@
 import jwt from "jsonwebtoken";
 import User from "../../user/models/userModel.js";
-
-//The flutter dev will set the token in the header on  his own the token is available in the in user response
+import Seller from "../../seller/models/Seller.js";
 
 export const isLoggedIn = async (req, res, next) => {
   try {
-    // Get token from Authorization header
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res
-        .status(401)
-        .json({ message: "No token provided, Unauthorized!" });
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. No token provided.'
+      });
     }
 
-    const token = authHeader.split(" ")[1];
-
-    // Verify token
-    const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Find user and check if the token matches the one stored in DB
-    const user = await User.findById(decodedToken.userId).select("-password");
-
-    if (!user || user.token !== token) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized - Invalid token or user not found" });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    if (decoded.role === 'admin') {
+      const user = await User.findById(decoded.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(401).json({
+          success: false,
+          message: 'Admin not found'
+        });
+      }
+      
+      req.user = {
+        _id: user._id,
+        role: 'admin',
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName
+      };
+    } else if (decoded.role === 'seller') {
+      const seller = await Seller.findById(decoded.userId);
+      if (!seller) {
+        return res.status(401).json({
+          success: false,
+          message: 'Seller not found'
+        });
+      }
+      
+      req.user = {
+        _id: seller._id,
+        role: 'seller',
+        email: seller.email,
+        name: seller.name,
+        verificationStatus: seller.verificationStatus
+      };
+    } else if (decoded.role === 'user') {
+      const user = await User.findById(decoded.userId).select("-password");
+      if (!user || user.token !== token) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not found or invalid token'
+        });
+      }
+      
+      req.user = user;
+    } else {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
     }
-
-    req.user = user;
+    
     next();
   } catch (error) {
-    return res.status(401).json({ message: error.message || "Unauthorized" });
+    res.status(401).json({
+      success: false,
+      message: 'Invalid token'
+    });
   }
 };
 

@@ -1,96 +1,166 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcrypt';
 
 const sellerSchema = new mongoose.Schema({
-  storeName: {
+  name: {
     type: String,
-    required: [true, 'Store name is required'],
-    trim: true,
-    maxlength: [100, 'Store name cannot exceed 100 characters']
-  },
-  ownerName: {
-    type: String,
-    required: [true, 'Owner name is required'],
-    trim: true,
-    maxlength: [100, 'Owner name cannot exceed 100 characters']
+    required: [true, 'Name is required'],
+    trim: true
   },
   email: {
     type: String,
     required: [true, 'Email is required'],
     unique: true,
     lowercase: true,
-    trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+    trim: true
   },
   phone: {
     type: String,
     required: [true, 'Phone number is required'],
-    unique: true,
-    trim: true,
-    match: [/^(\+256|0)[0-9]{9}$/, 'Please enter a valid Uganda phone number']
+    trim: true
   },
   password: {
     type: String,
     required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters'],
-    select: false
+    minlength: 6
+  },
+  businessName: {
+    type: String,
+    required: [true, 'Business name is required'],
+    trim: true
+  },
+  businessType: {
+    type: String,
+    required: [true, 'Business type is required'],
+    trim: true
   },
   businessRegistrationNumber: {
     type: String,
     required: [true, 'Business registration number is required'],
     unique: true,
-    trim: true,
-    uppercase: true
+    trim: true
   },
-  tinNumber: {
-    type: String,
-    required: [true, 'TIN number is required'],
-    unique: true,
-    trim: true,
-    match: [/^[0-9]{10}$/, 'TIN number must be 10 digits']
-  },
-  address: {
+  businessAddress: {
     district: {
       type: String,
-      required: [true, 'District is required'],
       trim: true
     },
     subCounty: {
       type: String,
-      required: [true, 'Sub-county is required'],
       trim: true
     },
     village: {
       type: String,
-      required: [true, 'Village is required'],
+      trim: true
+    },
+    street: {
+      type: String,
+      trim: true
+    },
+    postalCode: {
+      type: String,
+      trim: true
+    }
+  },
+  contactPerson: {
+    name: {
+      type: String,
+      trim: true
+    },
+    phone: {
+      type: String,
+      trim: true
+    },
+    email: {
+      type: String,
       trim: true
     }
   },
   bankDetails: {
     bankName: {
       type: String,
-      required: [true, 'Bank name is required'],
       trim: true
     },
     accountNumber: {
       type: String,
-      required: [true, 'Account number is required'],
-      trim: true,
-      match: [/^[0-9]{10,20}$/, 'Account number must be between 10-20 digits']
+      trim: true
+    },
+    accountName: {
+      type: String,
+      trim: true
+    },
+    swiftCode: {
+      type: String,
+      trim: true
     }
   },
+  businessEmail: {
+    type: String,
+    trim: true
+  },
+  businessDescription: {
+    type: String,
+    trim: true
+  },
+  website: {
+    type: String,
+    trim: true
+  },
+  socialMedia: {
+    facebook: {
+      type: String,
+      trim: true
+    },
+    instagram: {
+      type: String,
+      trim: true
+    },
+    twitter: {
+      type: String,
+      trim: true
+    },
+    linkedin: {
+      type: String,
+      trim: true
+    }
+  },
+  paymentMethods: [{
+    type: String
+  }],
+  deliveryOptions: [{
+    type: String
+  }],
   documents: {
-    idProof: {
+    businessRegistrationCertificate: {
       filename: String,
       path: String,
+      key: String, // S3 key for deletion
       uploadedAt: {
         type: Date,
         default: Date.now
       }
     },
-    storeLicense: {
+    bankStatement: {
       filename: String,
       path: String,
+      key: String, // S3 key for deletion
+      uploadedAt: {
+        type: Date,
+        default: Date.now
+      }
+    },
+    idProof: {
+      filename: String,
+      path: String,
+      key: String, // S3 key for deletion
+      uploadedAt: {
+        type: Date,
+        default: Date.now
+      }
+    },
+    tradingLicense: {
+      filename: String,
+      path: String,
+      key: String, // S3 key for deletion
       uploadedAt: {
         type: Date,
         default: Date.now
@@ -99,55 +169,54 @@ const sellerSchema = new mongoose.Schema({
   },
   verificationStatus: {
     type: String,
-    enum: ['pending', 'verified', 'rejected'],
+    enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
   rejectionReason: {
     type: String,
     trim: true
   },
-  role: {
-    type: String,
-    default: 'seller',
-    enum: ['seller', 'admin']
+  verifiedAt: {
+    type: Date
+  },
+  verifiedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
   isActive: {
     type: Boolean,
     default: true
   },
-  lastLogin: {
-    type: Date
+  rating: {
+    average: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5
+    },
+    totalReviews: {
+      type: Number,
+      default: 0
+    }
   }
 }, {
   timestamps: true
 });
 
-// Index for better query performance (only for fields without unique: true)
 sellerSchema.index({ verificationStatus: 1 });
+sellerSchema.index({ 'businessAddress.district': 1 });
+sellerSchema.index({ businessType: 1 });
 
-// Hash password before saving
-sellerSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  
-  try {
-    const salt = await bcrypt.genSalt(12);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Instance method to compare password
-sellerSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
-
-// Instance method to get public profile (excluding sensitive data)
 sellerSchema.methods.getPublicProfile = function() {
   const sellerObject = this.toObject();
-  delete sellerObject.password;
+  delete sellerObject.documents;
+  delete sellerObject.bankDetails;
+  delete sellerObject.rejectionReason;
   return sellerObject;
+};
+
+sellerSchema.methods.getAdminProfile = function() {
+  return this.toObject();
 };
 
 const Seller = mongoose.model('Seller', sellerSchema);

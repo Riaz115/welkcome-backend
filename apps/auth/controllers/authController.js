@@ -522,19 +522,28 @@ export const userLogin = async (req, res) => {
 
 export const adminSellerLogin = async (req, res) => {
   try {
+    console.log("=== Admin/Seller Login Attempt ===");
+    console.log("Request body:", req.body);
+    
     const { emailOrPhone, password } = req.body;
 
     if (!emailOrPhone || !password) {
+      console.log("Missing credentials - emailOrPhone:", !!emailOrPhone, "password:", !!password);
       return res.status(400).json({
         success: false,
         message: "Email/Phone and password are required"
       });
     }
 
+    console.log("Looking for admin with email:", emailOrPhone);
     const admin = await User.findOne({ email: emailOrPhone, role: 'admin' });
+    console.log("Admin found:", !!admin);
     if (admin) {
+      console.log("Admin login attempt for:", admin.email);
       // const isPasswordValid = await comparePassword(password, admin.password);
-      const isPasswordValid = password === admin.password
+      const isPasswordValid = password === admin.password;
+      console.log("Admin password valid:", isPasswordValid);
+      
       if (!isPasswordValid) {
         return res.status(401).json({
           success: false,
@@ -542,7 +551,9 @@ export const adminSellerLogin = async (req, res) => {
         });
       }
 
+      console.log("Generating JWT token for admin");
       const token = await generateJwtToken(admin._id, admin.email, 'admin');
+      console.log("Admin login successful");
       
       return res.json({
         success: true,
@@ -560,9 +571,17 @@ export const adminSellerLogin = async (req, res) => {
       });
     }
 
+    console.log("Looking for seller with email:", emailOrPhone);
     const seller = await Seller.findOne({ email: emailOrPhone });
+    console.log("Seller found:", !!seller);
+    
     if (seller) {
+      console.log("Seller login attempt for:", seller.email);
+      console.log("Seller verification status:", seller.verificationStatus);
+      
       const isPasswordValid = await comparePassword(password, seller.password);
+      console.log("Seller password valid:", isPasswordValid);
+      
       if (!isPasswordValid) {
         return res.status(401).json({
           success: false,
@@ -571,6 +590,7 @@ export const adminSellerLogin = async (req, res) => {
       }
 
       if (seller.verificationStatus === 'rejected') {
+        console.log("Seller account rejected");
         return res.status(403).json({
           success: false,
           message: "Your seller account has been rejected",
@@ -579,6 +599,7 @@ export const adminSellerLogin = async (req, res) => {
       }
       
       if (seller.verificationStatus === 'pending') {
+        console.log("Seller account pending");
         return res.status(403).json({
           success: false,
           message: "Your seller account is pending approval. Please wait for admin approval."
@@ -586,7 +607,9 @@ export const adminSellerLogin = async (req, res) => {
       }
 
       if (seller.verificationStatus === 'approved') {
+        console.log("Generating JWT token for seller");
         const token = await generateJwtToken(seller._id, seller.email, 'seller');
+        console.log("Seller login successful");
 
         return res.json({
           success: true,
@@ -606,15 +629,28 @@ export const adminSellerLogin = async (req, res) => {
       }
     }
 
+    console.log("No matching admin or seller found");
     res.status(401).json({
       success: false,
       message: "Invalid credentials"
     });
 
   } catch (error) {
-    res.status(500).json({
+    console.error("=== LOGIN ERROR DETAILS ===");
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("Full error object:", error);
+    
+    // Send more detailed error information in development
+    const errorResponse = {
       success: false,
-      message: "Server error during login"
-    });
+      message: "Server error during login",
+      ...(process.env.NODE_ENV === 'development' && {
+        error: error.message,
+        stack: error.stack
+      })
+    };
+    
+    res.status(500).json(errorResponse);
   }
 };

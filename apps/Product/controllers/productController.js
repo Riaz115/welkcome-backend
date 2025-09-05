@@ -91,7 +91,6 @@ export const createProduct = async (req, res) => {
                 if (Array.isArray(videosData)) {
                     videosData.forEach(video => {
                         if (video.file && video.file.path) {
-                            // Store the complete video object structure
                             uploadedVideos.push({
                                 file: {
                                     path: video.file.path,
@@ -105,7 +104,7 @@ export const createProduct = async (req, res) => {
                     });
                 }
             } catch (error) {
-                console.log('Error parsing videos from body:', error);
+                // Silent error handling
             }
         }
 
@@ -133,7 +132,7 @@ export const createProduct = async (req, res) => {
                     uploadedVideo = videoData;
                 }
             } catch (error) {
-                console.log('Error parsing video from body:', error);
+                // Silent error handling
             }
         }
 
@@ -162,8 +161,6 @@ export const createProduct = async (req, res) => {
                 size: file.size
             };
         }
-
-
 
         let processedVariants = [];
         let legacyVariants = [];
@@ -226,13 +223,10 @@ export const createProduct = async (req, res) => {
                     }));
                 }
             } catch (error) {
-                console.log('Error parsing variants:', error);
                 processedVariants = [];
                 legacyVariants = [];
             }
         }
-
-
 
         let productPrice = 0, productDiscount = 0, productFinalPrice = 0;
         
@@ -248,8 +242,6 @@ export const createProduct = async (req, res) => {
                 productDiscount = Math.max(...discounts);
             }
         }
-        
-
 
         let generatedSeoSlug = seoSlug;
         if (!generatedSeoSlug) {
@@ -270,7 +262,6 @@ export const createProduct = async (req, res) => {
                     processedTags = tags;
                 }
             } catch (error) {
-                console.log('Error parsing tags:', error);
                 processedTags = [];
             }
         }
@@ -284,7 +275,6 @@ export const createProduct = async (req, res) => {
                     processedVariantTypes = variantTypes;
                 }
             } catch (error) {
-                console.log('Error parsing variantTypes:', error);
                 processedVariantTypes = [];
             }
         }
@@ -298,7 +288,6 @@ export const createProduct = async (req, res) => {
                     processedColorValues = colorValues;
                 }
             } catch (error) {
-                console.log('Error parsing colorValues:', error);
                 processedColorValues = [];
             }
         }
@@ -312,7 +301,6 @@ export const createProduct = async (req, res) => {
                     processedSizes = sizes;
                 }
             } catch (error) {
-                console.log('Error parsing sizes:', error);
                 processedSizes = [];
             }
         }
@@ -326,9 +314,20 @@ export const createProduct = async (req, res) => {
                     processedVariantSizes = variantSizes;
                 }
             } catch (error) {
-                console.log('Error parsing variantSizes:', error);
                 processedVariantSizes = {};
             }
+        }
+
+        let productStatus = 'pending';
+        let creatorInfo = {
+            id: req.user._id,
+            role: req.user.role,
+            name: req.user.role === 'admin' ? `${req.user.firstName} ${req.user.lastName}` : req.user.name,
+            email: req.user.email
+        };
+
+        if (req.user.role === 'admin') {
+            productStatus = 'approved';
         }
 
         const newProduct = new Product({
@@ -381,7 +380,9 @@ export const createProduct = async (req, res) => {
                 category: category,
                 subCategory: subcategory
             },
-            legacyVariants: legacyVariants
+            legacyVariants: legacyVariants,
+            status: productStatus,
+            creator: creatorInfo
         });
 
         const savedProduct = await newProduct.save();
@@ -393,8 +394,6 @@ export const createProduct = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error creating product:', error);
-        
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
@@ -402,7 +401,6 @@ export const createProduct = async (req, res) => {
             });
         }
 
-        // Handle validation errors
         if (error.name === 'ValidationError') {
             const validationErrors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({
@@ -467,10 +465,8 @@ export const getAllProducts = async (req, res) => {
             ];
         }
 
-        // Calculate pagination
         const skip = (Number(page) - 1) * Number(limit);
 
-        // Build sort object
         const sort = {};
         sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
@@ -499,7 +495,6 @@ export const getAllProducts = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error getting products:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error',
@@ -512,7 +507,6 @@ export const getProductById = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Validate ObjectId
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
                 success: false,
@@ -536,36 +530,6 @@ export const getProductById = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error getting product:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
-        });
-    }
-};
-
-export const getProductBySlug = async (req, res) => {
-    try {
-        const { slug } = req.params;
-
-        const product = await Product.findOne({ seoSlug: slug }).lean();
-
-        if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: 'Product not found'
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            message: 'Product retrieved successfully',
-            data: product
-        });
-
-    } catch (error) {
-        console.error('Error getting product by slug:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error',
@@ -579,7 +543,6 @@ export const updateProduct = async (req, res) => {
         const { id } = req.params;
         const updateData = { ...req.body };
 
-        // Validate ObjectId
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
                 success: false,
@@ -587,54 +550,43 @@ export const updateProduct = async (req, res) => {
             });
         }
 
-        // Process modelValues - convert array to string if needed
         if (updateData.modelValues) {
             if (Array.isArray(updateData.modelValues)) {
                 updateData.modelValues = updateData.modelValues.join(', ');
-            } else if (typeof updateData.modelValues === 'string') {
-                // Keep as is if it's already a string
-                updateData.modelValues = updateData.modelValues;
             }
         }
 
-        // Process colorValues - ensure it's an array
         if (updateData.colorValues) {
             if (typeof updateData.colorValues === 'string') {
                 try {
                     updateData.colorValues = JSON.parse(updateData.colorValues);
                 } catch (error) {
-                    // If parsing fails, treat as comma-separated string
                     updateData.colorValues = updateData.colorValues.split(',').map(item => item.trim());
                 }
             }
         }
 
-        // Process customVariantValues - convert array to string if needed
         if (updateData.customVariantValues) {
             if (Array.isArray(updateData.customVariantValues)) {
                 updateData.customVariantValues = updateData.customVariantValues.join(', ');
             }
         }
 
-        // Process tags - ensure it's an array
         if (updateData.tags) {
             if (typeof updateData.tags === 'string') {
                 try {
                     updateData.tags = JSON.parse(updateData.tags);
                 } catch (error) {
-                    // If parsing fails, treat as comma-separated string
                     updateData.tags = updateData.tags.split(',').map(item => item.trim());
                 }
             }
         }
 
-        // Process sizes - ensure it's an array
         if (updateData.sizes) {
             if (typeof updateData.sizes === 'string') {
                 try {
                     updateData.sizes = JSON.parse(updateData.sizes);
                 } catch (error) {
-                    // If parsing fails, treat as comma-separated string
                     updateData.sizes = updateData.sizes.split(',').map(item => item.trim());
                 }
             }
@@ -692,21 +644,17 @@ export const updateProduct = async (req, res) => {
             }
         }
 
-        // Process images to remove blob URLs and set coverImage
         if (updateData.images && Array.isArray(updateData.images) && updateData.images.length > 0) {
-            // Process each image to remove blob URLs
             const processedImages = updateData.images.map(image => {
                 let imagePath = image.file?.path || image.path;
                 let relativePath = image.file?.relativePath || image.relativePath || imagePath;
                 
-                // If path starts with './', convert to AWS URL
                 if (imagePath && imagePath.startsWith('./')) {
                     const filename = imagePath.replace('./', '');
                     imagePath = getS3ImageUrl(`products/${filename}`);
                     relativePath = `products/${filename}`;
                 }
                 
-                // Remove blob URL from preview
                 let preview = image.preview;
                 if (preview && preview.startsWith('blob:')) {
                     preview = imagePath;
@@ -725,7 +673,6 @@ export const updateProduct = async (req, res) => {
             
             updateData.images = processedImages;
             updateData.coverImage = processedImages[0].file.path;
-            console.log('Setting coverImage to:', updateData.coverImage);
         }
 
         if (updateData.title && !updateData.seoSlug) {
@@ -764,8 +711,6 @@ export const updateProduct = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error updating product:', error);
-
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
@@ -773,7 +718,6 @@ export const updateProduct = async (req, res) => {
             });
         }
 
-        // Handle validation errors
         if (error.name === 'ValidationError') {
             const validationErrors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({
@@ -795,7 +739,6 @@ export const deleteProduct = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Validate ObjectId
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
                 success: false,
@@ -819,7 +762,6 @@ export const deleteProduct = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error deleting product:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error',
@@ -828,189 +770,109 @@ export const deleteProduct = async (req, res) => {
     }
 };
 
-export const getProductsByCategory = async (req, res) => {
+export const approveProduct = async (req, res) => {
     try {
-        const { primeCategory, category, subcategory } = req.params;
-        const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+        const { id } = req.params;
 
-        const filter = {
-            primeCategory: primeCategory,
-            category: category
-        };
-
-        if (subcategory) {
-            filter.subcategory = subcategory;
-        }
-
-        // Calculate pagination
-        const skip = (Number(page) - 1) * Number(limit);
-
-        // Build sort object
-        const sort = {};
-        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
-
-        const products = await Product.find(filter)
-            .sort(sort)
-            .skip(skip)
-            .limit(Number(limit))
-            .lean();
-
-        const totalProducts = await Product.countDocuments(filter);
-        const totalPages = Math.ceil(totalProducts / Number(limit));
-
-        res.status(200).json({
-            success: true,
-            message: 'Products retrieved successfully',
-            data: {
-                products,
-                pagination: {
-                    currentPage: Number(page),
-                    totalPages,
-                    totalProducts,
-                    hasNextPage: Number(page) < totalPages,
-                    hasPrevPage: Number(page) > 1
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error('Error getting products by category:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
-        });
-    }
-};
-
-export const getProductsByBrand = async (req, res) => {
-    try {
-        const { brandId } = req.params;
-        const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
-
-        const filter = { brandId: brandId };
-
-        // Calculate pagination
-        const skip = (Number(page) - 1) * Number(limit);
-
-        // Build sort object
-        const sort = {};
-        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
-
-        const products = await Product.find(filter)
-            .sort(sort)
-            .skip(skip)
-            .limit(Number(limit))
-            .lean();
-
-        const totalProducts = await Product.countDocuments(filter);
-        const totalPages = Math.ceil(totalProducts / Number(limit));
-
-        res.status(200).json({
-            success: true,
-            message: 'Products retrieved successfully',
-            data: {
-                products,
-                pagination: {
-                    currentPage: Number(page),
-                    totalPages,
-                    totalProducts,
-                    hasNextPage: Number(page) < totalPages,
-                    hasPrevPage: Number(page) > 1
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error('Error getting products by brand:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
-        });
-    }
-};
-
-export const getProductStats = async (req, res) => {
-    try {
-        const totalProducts = await Product.countDocuments();
-        
-        const categoryStats = await Product.aggregate([
-            {
-                $group: {
-                    _id: '$primeCategory',
-                    count: { $sum: 1 }
-                }
-            },
-            {
-                $sort: { count: -1 }
-            }
-        ]);
-
-        const brandStats = await Product.aggregate([
-            {
-                $group: {
-                    _id: '$brand',
-                    count: { $sum: 1 }
-                }
-            },
-            {
-                $sort: { count: -1 }
-            }
-        ]);
-
-        const visibilityStats = await Product.aggregate([
-            {
-                $group: {
-                    _id: '$visibility',
-                    count: { $sum: 1 }
-                }
-            }
-        ]);
-
-        res.status(200).json({
-            success: true,
-            message: 'Product statistics retrieved successfully',
-            data: {
-                totalProducts,
-                categoryStats,
-                brandStats,
-                visibilityStats
-            }
-        });
-
-    } catch (error) {
-        console.error('Error getting product stats:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
-        });
-    }
-};
-
-export const searchProducts = async (req, res) => {
-    try {
-        const { q, page = 1, limit = 10 } = req.query;
-
-        if (!q) {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
                 success: false,
-                message: 'Search query is required'
+                message: 'Invalid product ID'
             });
         }
 
-        const filter = {
-            $or: [
-                { title: { $regex: q, $options: 'i' } },
-                { description: { $regex: q, $options: 'i' } },
-                { brand: { $regex: q, $options: 'i' } },
-                { tags: { $regex: q, $options: 'i' } },
-                { 'variants.name': { $regex: q, $options: 'i' } }
-            ]
-        };
+        const product = await Product.findById(id);
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
 
-        // Calculate pagination
+        const updatedProduct = await Product.findByIdAndUpdate(
+            id,
+            { status: 'approved' },
+            { new: true, runValidators: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Product approved successfully',
+            data: updatedProduct
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+        });
+    }
+};
+
+export const rejectProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rejectionReason } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid product ID'
+            });
+        }
+
+        const product = await Product.findById(id);
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        const updateData = { status: 'rejected' };
+        if (rejectionReason) {
+            updateData.rejectionReason = rejectionReason;
+        }
+
+        const updatedProduct = await Product.findByIdAndUpdate(
+            id,
+            updateData,
+            { new: true, runValidators: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Product rejected successfully',
+            data: updatedProduct
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+        });
+    }
+};
+
+export const getProductsBySeller = async (req, res) => {
+    try {
+        const { sellerId } = req.params;
+        const { page = 1, limit = 10, status } = req.query;
+
+        if (!mongoose.Types.ObjectId.isValid(sellerId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid seller ID'
+            });
+        }
+
+        const filter = { 'creator.id': sellerId };
+        if (status) {
+            filter.status = status;
+        }
+
         const skip = (Number(page) - 1) * Number(limit);
 
         const products = await Product.find(filter)
@@ -1024,10 +886,9 @@ export const searchProducts = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Search results retrieved successfully',
+            message: 'Seller products retrieved successfully',
             data: {
                 products,
-                query: q,
                 pagination: {
                     currentPage: Number(page),
                     totalPages,
@@ -1039,7 +900,6 @@ export const searchProducts = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error searching products:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error',

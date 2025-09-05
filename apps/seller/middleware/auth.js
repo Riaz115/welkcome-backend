@@ -98,10 +98,11 @@ export const requireAdminOrSeller = (req, res, next) => {
     });
   }
   
-  if (req.user.role === 'seller' && req.user.verificationStatus !== 'approved') {
+  // Allow both pending and approved sellers to create products
+  if (req.user.role === 'seller' && req.user.verificationStatus === 'rejected') {
     return res.status(403).json({
       success: false,
-      message: 'Access denied. Seller account not approved.'
+      message: 'Access denied. Seller account has been rejected.'
     });
   }
   next();

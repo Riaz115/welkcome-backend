@@ -240,7 +240,6 @@ export const getAllSellers = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Get all sellers error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while fetching sellers"
@@ -272,7 +271,6 @@ export const getSellerById = async (req, res) => {
       data: sellerObj
     });
   } catch (error) {
-    console.error("Get seller by ID error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while fetching seller"
@@ -299,7 +297,6 @@ export const getMySellerProfile = async (req, res) => {
       data: seller
     });
   } catch (error) {
-    console.error("Get my seller profile error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while fetching seller profile"
@@ -380,7 +377,6 @@ export const updateSeller = async (req, res) => {
       });
     }
 
-    console.error("Update seller error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while updating seller"
@@ -422,7 +418,6 @@ export const deleteSeller = async (req, res) => {
       message: "Seller deleted successfully"
     });
   } catch (error) {
-    console.error("Delete seller error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while deleting seller"
@@ -480,7 +475,6 @@ export const verifySeller = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Verify seller error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while verifying seller"
@@ -527,7 +521,6 @@ export const getSellerStats = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Get seller stats error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while fetching seller statistics"
@@ -567,7 +560,6 @@ export const getPendingSellers = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Get pending sellers error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while fetching pending sellers"
@@ -612,7 +604,6 @@ export const approveSeller = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Approve seller error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while approving seller"
@@ -667,7 +658,6 @@ export const rejectSeller = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Reject seller error:", error);
     res.status(500).json({
       success: false,
       message: "Server error while rejecting seller"
@@ -724,6 +714,103 @@ export const clearAllSellers = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error while clearing sellers"
+    });
+  }
+};
+
+export const blockSeller = async (req, res) => {
+  try {
+    const { sellerId } = req.params;
+    const { blockReason } = req.body;
+
+    if (!blockReason) {
+      return res.status(400).json({
+        success: false,
+        message: "Block reason is required"
+      });
+    }
+
+    const seller = await Seller.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found"
+      });
+    }
+
+    if (seller.isBlocked) {
+      return res.status(400).json({
+        success: false,
+        message: "Seller is already blocked"
+      });
+    }
+
+    seller.isBlocked = true;
+    seller.blockedAt = new Date();
+    seller.blockedBy = req.user._id;
+    seller.blockReason = blockReason;
+
+    await seller.save();
+
+    res.json({
+      success: true,
+      message: "Seller blocked successfully",
+      data: {
+        sellerId: seller._id,
+        businessName: seller.businessName,
+        isBlocked: seller.isBlocked,
+        blockReason: seller.blockReason,
+        blockedAt: seller.blockedAt
+      }
+    });
+  } catch (error) {
+    console.error("Block seller error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while blocking seller"
+    });
+  }
+};
+
+export const unblockSeller = async (req, res) => {
+  try {
+    const { sellerId } = req.params;
+
+    const seller = await Seller.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found"
+      });
+    }
+
+    if (!seller.isBlocked) {
+      return res.status(400).json({
+        success: false,
+        message: "Seller is not blocked"
+      });
+    }
+
+    seller.isBlocked = false;
+    seller.blockedAt = null;
+    seller.blockedBy = null;
+    seller.blockReason = null;
+
+    await seller.save();
+
+    res.json({
+      success: true,
+      message: "Seller unblocked successfully",
+      data: {
+        sellerId: seller._id,
+        businessName: seller.businessName,
+        isBlocked: seller.isBlocked
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server error while unblocking seller"
     });
   }
 };

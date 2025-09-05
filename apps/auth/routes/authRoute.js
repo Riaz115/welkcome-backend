@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { firebaseSync, resetPassword, sendOTP, signup, verifyEmail, verifyOTP, userLogin, adminSellerLogin } from "../controllers/authController.js";
+import { firebaseSync, resetPassword, sendOTP, signup, verifyEmail, verifyOTP, userLogin, adminSellerLogin, getProfile } from "../controllers/authController.js";
 import { login } from "../controllers/authController.js";
 
 const router = Router();
@@ -13,4 +13,5 @@ router.post("/verify-otp", verifyOTP);
 router.post("/reset-password", resetPassword);
 router.post('/firebase-sync', firebaseSync);
 router.get("/verify-email", verifyEmail);
+router.get("/profile/:id", getProfile);
 export default router;

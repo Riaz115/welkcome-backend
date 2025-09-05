@@ -187,6 +187,21 @@ const sellerSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  isBlocked: {
+    type: Boolean,
+    default: false
+  },
+  blockedAt: {
+    type: Date
+  },
+  blockedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  blockReason: {
+    type: String,
+    trim: true
+  },
   rating: {
     average: {
       type: Number,

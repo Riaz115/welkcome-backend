@@ -124,7 +124,23 @@ const productSchema = new mongoose.Schema({
   legacyVariants: [{
     name: { type: String, required: true },
     value: { type: String, required: true }
-  }]
+  }],
+  status: { 
+    type: String, 
+    enum: ['pending', 'approved', 'rejected'], 
+    default: 'pending' 
+  },
+  rejectionReason: { type: String, default: '' },
+  creator: {
+    id: { type: mongoose.Schema.Types.ObjectId, required: true },
+    role: { 
+      type: String, 
+      enum: ['admin', 'seller'], 
+      required: true 
+    },
+    name: { type: String, required: true },
+    email: { type: String, required: true }
+  }
   
 }, { 
   timestamps: true,

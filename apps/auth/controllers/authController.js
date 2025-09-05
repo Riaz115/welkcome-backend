@@ -522,27 +522,18 @@ export const userLogin = async (req, res) => {
 
 export const adminSellerLogin = async (req, res) => {
   try {
-    console.log("=== Admin/Seller Login Attempt ===");
-    console.log("Request body:", req.body);
-    
     const { emailOrPhone, password } = req.body;
 
     if (!emailOrPhone || !password) {
-      console.log("Missing credentials - emailOrPhone:", !!emailOrPhone, "password:", !!password);
       return res.status(400).json({
         success: false,
         message: "Email/Phone and password are required"
       });
     }
 
-    console.log("Looking for admin with email:", emailOrPhone);
     const admin = await User.findOne({ email: emailOrPhone, role: 'admin' });
-    console.log("Admin found:", !!admin);
     if (admin) {
-      console.log("Admin login attempt for:", admin.email);
-      // const isPasswordValid = await comparePassword(password, admin.password);
       const isPasswordValid = password === admin.password;
-      console.log("Admin password valid:", isPasswordValid);
       
       if (!isPasswordValid) {
         return res.status(401).json({
@@ -551,9 +542,7 @@ export const adminSellerLogin = async (req, res) => {
         });
       }
 
-      console.log("Generating JWT token for admin");
       const token = await generateJwtToken(admin._id, admin.email, 'admin');
-      console.log("Admin login successful");
       
       return res.json({
         success: true,
@@ -571,16 +560,10 @@ export const adminSellerLogin = async (req, res) => {
       });
     }
 
-    console.log("Looking for seller with email:", emailOrPhone);
     const seller = await Seller.findOne({ email: emailOrPhone });
-    console.log("Seller found:", !!seller);
     
     if (seller) {
-      console.log("Seller login attempt for:", seller.email);
-      console.log("Seller verification status:", seller.verificationStatus);
-      
       const isPasswordValid = await comparePassword(password, seller.password);
-      console.log("Seller password valid:", isPasswordValid);
       
       if (!isPasswordValid) {
         return res.status(401).json({
@@ -590,7 +573,6 @@ export const adminSellerLogin = async (req, res) => {
       }
 
       if (seller.verificationStatus === 'rejected') {
-        console.log("Seller account rejected");
         return res.status(403).json({
           success: false,
           message: "Your seller account has been rejected",
@@ -598,18 +580,8 @@ export const adminSellerLogin = async (req, res) => {
         });
       }
       
-      if (seller.verificationStatus === 'pending') {
-        console.log("Seller account pending");
-        return res.status(403).json({
-          success: false,
-          message: "Your seller account is pending approval. Please wait for admin approval."
-        });
-      }
-
-      if (seller.verificationStatus === 'approved') {
-        console.log("Generating JWT token for seller");
+      if (seller.verificationStatus === 'pending' || seller.verificationStatus === 'approved') {
         const token = await generateJwtToken(seller._id, seller.email, 'seller');
-        console.log("Seller login successful");
 
         return res.json({
           success: true,
@@ -629,19 +601,13 @@ export const adminSellerLogin = async (req, res) => {
       }
     }
 
-    console.log("No matching admin or seller found");
     res.status(401).json({
       success: false,
-      message: "Invalid credentials"
+      message: "Invalid credentials",
+      err:error
     });
 
   } catch (error) {
-    console.error("=== LOGIN ERROR DETAILS ===");
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-    console.error("Full error object:", error);
-    
-    // Send more detailed error information in development
     const errorResponse = {
       success: false,
       message: "Server error during login",
@@ -652,5 +618,68 @@ export const adminSellerLogin = async (req, res) => {
     };
     
     res.status(500).json(errorResponse);
+  }
+};
+
+export const getProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "ID is required"
+      });
+    }
+
+    // First try to find as admin in User collection
+    const admin = await User.findOne({ _id: id, role: 'admin' });
+    if (admin) {
+      // Convert admin to object and remove password
+      const adminData = admin.toObject();
+      delete adminData.password;
+      delete adminData.token;
+      
+      return res.json({
+        success: true,
+        message: "Admin profile retrieved successfully",
+        data: {
+          ...adminData,
+          role: 'admin'
+        }
+      });
+    }
+
+    // If not admin, try to find as seller
+    const seller = await Seller.findOne({ _id: id });
+    if (seller) {
+      // Convert seller to object and remove password
+      const sellerData = seller.toObject();
+      delete sellerData.password;
+      
+      return res.json({
+        success: true,
+        message: "Seller profile retrieved successfully",
+        data: {
+          ...sellerData,
+          role: 'seller'
+        }
+      });
+    }
+
+    // If neither admin nor seller found
+    return res.status(404).json({
+      success: false,
+      message: "Profile not found"
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error while retrieving profile",
+      ...(process.env.NODE_ENV === 'development' && {
+        error: error.message
+      })
+    });
   }
 };

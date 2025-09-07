@@ -610,7 +610,8 @@ export const adminSellerLogin = async (req, res) => {
   } catch (error) {
     const errorResponse = {
       success: false,
-      message: "Server error during login",
+      message: "Server error during login by riaz ",
+      error: error,
       ...(process.env.NODE_ENV === 'development' && {
         error: error.message,
         stack: error.stack

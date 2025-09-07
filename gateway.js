@@ -38,7 +38,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     const allowedOrigins = [
-      "http://localhost:3000",
+      "http://localhost:3001",
       "http://monkmaze-s3.s3-website.ap-south-1.amazonaws.com",
       "https://monkmaze-s3.s3-website.ap-south-1.amazonaws.com", // HTTPS add karo
       "http://ec2-13-245-5-146.af-south-1.compute.amazonaws.com:3000",

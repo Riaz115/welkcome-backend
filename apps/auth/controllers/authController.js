@@ -533,7 +533,7 @@ export const adminSellerLogin = async (req, res) => {
 
     const admin = await User.findOne({ email: emailOrPhone, role: 'admin' });
     if (admin) {
-      const isPasswordValid = password === admin.password;
+      const isPasswordValid = await comparePassword(password, admin.password);
       
       if (!isPasswordValid) {
         return res.status(401).json({
@@ -603,15 +603,15 @@ export const adminSellerLogin = async (req, res) => {
 
     res.status(401).json({
       success: false,
-      message: "Invalid credentials",
-      err:error
+      message: "Invalid credentials"
     });
 
   } catch (error) {
+    console.error('Admin-Seller Login Error:', error);
+    
     const errorResponse = {
       success: false,
-      message: "Server error during login by riaz ",
-      error: error,
+      message: "Server error during login",
       ...(process.env.NODE_ENV === 'development' && {
         error: error.message,
         stack: error.stack

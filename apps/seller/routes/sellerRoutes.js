@@ -26,12 +26,12 @@ const router = express.Router();
 router.get('/stats', getSellerStats);
 router.get('/test', testSellerCreation);
 router.get('/:id', getSellerById);
+router.post('/become-seller', uploadSellerDocs, parseFormData, validateRequiredFiles, validateBecomeSeller, handleUploadError, becomeSeller);
 
 // Protected routes - require authentication
 router.use(verifyToken);
 
 // User routes
-router.post('/become-seller', uploadSellerDocs, parseFormData, validateRequiredFiles, validateBecomeSeller, handleUploadError, becomeSeller);
 router.get('/profile/me', getMySellerProfile);
 router.put('/profile/me', uploadSellerDocs, parseFormData, validateUpdateSeller, handleUploadError, updateSeller);
 router.delete('/profile/me', deleteSeller);

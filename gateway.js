@@ -9,6 +9,9 @@ import sellerRoutes from "./apps/seller/routes/sellerRoutes.js";
 import riderRoutes from "./apps/rider/routes/riderRoutes.js";
 import categoryRoutes from "./apps/categoryManagement/routes/categoryRoutes.js";
 import brandRoutes from "./apps/brand/routes/brandRoutes.js";
+import cartRoutes from "./apps/cart/routes/cartRoutes.js";
+import couponRoutes from "./apps/coupon/routes/couponRoutes.js";
+import wishlistRoutes from "./apps/wishlist/routes/wishlistRoutes.js";
 
 dotenv.config();
 
@@ -98,6 +101,9 @@ app.use("/api/v1/seller", sellerRoutes);
 app.use("/api/v1/rider", riderRoutes);
 app.use("/api/v1/categories", categoryRoutes);
 app.use("/api/v1/brands", brandRoutes);
+app.use("/api/v1/cart", cartRoutes);
+app.use("/api/v1/coupons", couponRoutes);
+app.use("/api/v1/wishlist", wishlistRoutes);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });

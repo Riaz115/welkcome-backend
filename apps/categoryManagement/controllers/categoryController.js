@@ -5,8 +5,6 @@ import Subcategory from '../models/Subcategory.js';
 import { generateUniqueSerialNumber, isSerialNumberUnique } from '../utils/serialGenerator.js';
 import { getImageUrl, deleteFileFromS3 } from '../middleware/upload.js';
 
-//catgory controllers
-
 export const getAllCategories = async (req, res) => {
   try {
     const {
@@ -19,7 +17,6 @@ export const getAllCategories = async (req, res) => {
       sortOrder = 'desc'
     } = req.query;
 
-    // Build query conditions
     const queryConditions = {};
     
     if (search) {
@@ -34,13 +31,9 @@ export const getAllCategories = async (req, res) => {
       queryConditions.primeCategoryId = new mongoose.Types.ObjectId(primeCategoryId);
     }
 
-    
-
-    // Pagination
     const skip = (page - 1) * limit;
     const sortOptions = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
 
-    // Aggregation pipeline
     const pipeline = [
       { $match: queryConditions },
       {
@@ -69,10 +62,8 @@ export const getAllCategories = async (req, res) => {
           image: {
             $cond: {
               if: { $ne: ['$image', null] },
-              // then: { $concat: [process.env.BASE_URL || 'http://localhost:3000', '/uploads/categories/', '$image'] },
               then: '$image',
               else: null
-
             }
           }
         }
@@ -95,8 +86,6 @@ export const getAllCategories = async (req, res) => {
     const total = await Category.countDocuments(queryConditions);
     const totalPages = Math.ceil(total / limit);
 
-    
-
     res.status(200).json({
       success: true,
       data: categories,
@@ -108,7 +97,6 @@ export const getAllCategories = async (req, res) => {
       }
     });
   } catch (error) {
-    
     res.status(500).json({
       success: false,
       message: 'Server error while fetching categories',
@@ -129,9 +117,6 @@ export const getCategoriesByPrimeCategory = async (req, res) => {
       sortOrder = 'desc'
     } = req.query;
 
-    
-
-    // Build query conditions - FORCE filter by primeCategoryId
     const queryConditions = { 
       primeCategoryId: new mongoose.Types.ObjectId(primeId) 
     };
@@ -144,15 +129,11 @@ export const getCategoriesByPrimeCategory = async (req, res) => {
       queryConditions.status = status;
     }
 
-    
-
-    // Pagination
     const skip = (page - 1) * limit;
     const sortOptions = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
 
-    // Aggregation pipeline with FORCED filtering
     const pipeline = [
-      { $match: queryConditions }, // This MUST filter by primeCategoryId
+      { $match: queryConditions },
       {
         $lookup: {
           from: 'primecategories',
@@ -179,7 +160,6 @@ export const getCategoriesByPrimeCategory = async (req, res) => {
           image: {
             $cond: {
               if: { $ne: ['$image', null] },
-              // then: { $concat: [process.env.BASE_URL || 'http://localhost:5000', '/uploads/categories/', '$image'] },
               then: '$image',
               else: null
             }
@@ -204,8 +184,6 @@ export const getCategoriesByPrimeCategory = async (req, res) => {
     const total = await Category.countDocuments(queryConditions);
     const totalPages = Math.ceil(total / limit);
 
-    
-
     res.status(200).json({
       success: true,
       data: categories,
@@ -217,7 +195,6 @@ export const getCategoriesByPrimeCategory = async (req, res) => {
       }
     });
   } catch (error) {
-    
     res.status(500).json({
       success: false,
       message: 'Server error while fetching categories',
@@ -259,7 +236,6 @@ export const getCategoryById = async (req, res) => {
           image: {
             $cond: {
               if: { $ne: ['$image', null] },
-              // then: { $concat: [process.env.BASE_URL || 'http://localhost:3000', '/uploads/categories/', '$image'] },
               then: '$image',
               else: null
             }
@@ -268,7 +244,6 @@ export const getCategoryById = async (req, res) => {
       }
     ];
 
-    // If include subcategories is not requested, exclude them
     if (!include.includes('subcategories')) {
       pipeline.push({
         $project: {
@@ -306,7 +281,6 @@ export const getCategoryById = async (req, res) => {
       data: category
     });
   } catch (error) {
-    
     res.status(500).json({
       success: false,
       message: 'Server error while fetching category',
@@ -315,133 +289,10 @@ export const getCategoryById = async (req, res) => {
   }
 };
 
-// Create category
-
-// export const createCategory = async (req, res) => {
-//   try {
-//     const { name, primeCategoryId, serialNumber, status = 'Active' } = req.body;
-//
-//     // Check if prime category exists
-//     const primeCategory = await PrimeCategory.findById(primeCategoryId);
-//     if (!primeCategory) {
-//       if (req.file) {
-//         deleteFile(req.file.path);
-//       }
-//
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Prime category not found',
-//         error: 'NOT_FOUND'
-//       });
-//     }
-//
-//     // Check if name already exists within the same prime category
-//     const existingName = await Category.findOne({
-//       name: { $regex: new RegExp(`^${name}$`, 'i') },
-//       primeCategoryId
-//     });
-//
-//     if (existingName) {
-//       if (req.file) {
-//         deleteFile(req.file.path);
-//       }
-//
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Category name already exists in this prime category',
-//         error: 'DUPLICATE_ENTRY'
-//       });
-//     }
-//
-//     // Generate or validate serial number
-//     let finalSerialNumber = serialNumber;
-//     if (!finalSerialNumber) {
-//       finalSerialNumber = await generateUniqueSerialNumber();
-//     } else {
-//       const isUnique = await isSerialNumberUnique(finalSerialNumber, null, 'category');
-//       if (!isUnique) {
-//         if (req.file) {
-//           deleteFile(req.file.path);
-//         }
-//
-//         return res.status(400).json({
-//           success: false,
-//           message: 'Serial number already exists',
-//           error: 'DUPLICATE_ENTRY'
-//         });
-//       }
-//     }
-//
-//     // Handle image
-//     let imageFilename = null;
-//     if (req.file) {
-//       imageFilename = req.file.filename;
-//     }
-//
-//     // Create category
-//     const category = new Category({
-//       name,
-//       primeCategoryId,
-//       serialNumber: finalSerialNumber,
-//       image: imageFilename,
-//       status
-//     });
-//
-//     await category.save();
-//
-//     // Return created category with formatted response
-//     const responseData = {
-//       id: category._id,
-//       name: category.name,
-//       serialNumber: category.serialNumber,
-//       image: imageFilename ? getImageUrl(imageFilename) : null,
-//       status: category.status,
-//       primeCategoryId: category.primeCategoryId,
-//       categoryCount: 0,
-//       totalProducts: 0,
-//       primeCategory: {
-//         _id: primeCategory._id,
-//         name: primeCategory.name
-//       },
-//       createdAt: category.createdAt,
-//       updatedAt: category.updatedAt
-//     };
-//
-//     res.status(201).json({
-//       success: true,
-//       message: 'Category created successfully',
-//       data: responseData
-//     });
-//   } catch (error) {
-//     if (req.file) {
-//       deleteFile(req.file.path);
-//     }
-//
-//     console.error('Error creating category:', error);
-//
-//     if (error.name === 'ValidationError') {
-//       const errors = Object.values(error.errors).map(val => val.message);
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Validation error',
-//         error: 'VALIDATION_ERROR',
-//         details: errors
-//       });
-//     }
-//
-//     res.status(500).json({
-//       success: false,
-//       message: 'Server error while creating category',
-//       error: 'INTERNAL_SERVER_ERROR'
-//     });
-//   }
-// };
-
 export const createCategory = async (req, res) => {
   try {
     const { name, primeCategoryId, serialNumber, status = 'Active' } = req.body;
 
-    // Check if prime category exists
     const primeCategory = await PrimeCategory.findById(primeCategoryId);
     if (!primeCategory) {
       if (req.file?.key) {
@@ -454,7 +305,6 @@ export const createCategory = async (req, res) => {
       });
     }
 
-    // Check if category name exists within the same prime category
     const existingName = await Category.findOne({
       name: { $regex: new RegExp(`^${name}$`, 'i') },
       primeCategoryId,
@@ -471,7 +321,6 @@ export const createCategory = async (req, res) => {
       });
     }
 
-    // Generate or validate serial number
     let finalSerialNumber = serialNumber;
     if (!finalSerialNumber) {
       finalSerialNumber = await generateUniqueSerialNumber();
@@ -489,10 +338,8 @@ export const createCategory = async (req, res) => {
       }
     }
 
-    // Get image URL from S3
     const imageUrl = req.file?.location || (req.file?.key ? getImageUrl(req.file.key) : null);
 
-    // Create the category
     const category = new Category({
       name,
       primeCategoryId,
@@ -530,8 +377,6 @@ export const createCategory = async (req, res) => {
       await deleteFileFromS3(req.file.key);
     }
 
-    
-
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map((val) => val.message);
       return res.status(400).json({
@@ -549,131 +394,6 @@ export const createCategory = async (req, res) => {
     });
   }
 };
-
-// Update category
-// export const updateCategory = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { name, status } = req.body;
-//
-//     const category = await Category.findById(id);
-//     if (!category) {
-//       if (req.file) {
-//         deleteFile(req.file.path);
-//       }
-//
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Category not found',
-//         error: 'NOT_FOUND'
-//       });
-//     }
-//
-//     const updateData = {};
-//
-//     // Check name uniqueness if name is being updated
-//     if (name && name !== category.name) {
-//       const existingName = await Category.findOne({
-//         name: { $regex: new RegExp(`^${name}$`, 'i') },
-//         primeCategoryId: category.primeCategoryId,
-//         _id: { $ne: id }
-//       });
-//
-//       if (existingName) {
-//         if (req.file) {
-//           deleteFile(req.file.path);
-//         }
-//
-//         return res.status(400).json({
-//           success: false,
-//           message: 'Category name already exists in this prime category',
-//           error: 'DUPLICATE_ENTRY'
-//         });
-//       }
-//       updateData.name = name;
-//     }
-//
-//     if (status) {
-//       updateData.status = status;
-//     }
-//
-//     // Handle image update
-//     if (req.file) {
-//       if (category.image) {
-//         deleteFile(`uploads/categories/${category.image}`);
-//       }
-//       updateData.image = req.file.filename;
-//     }
-//
-//     // Update category
-//     await Category.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
-//
-//     // Get updated category with counts
-//     const pipeline = [
-//       { $match: { _id: new mongoose.Types.ObjectId(id) } },
-//       {
-//         $lookup: {
-//           from: 'primecategories',
-//           localField: 'primeCategoryId',
-//           foreignField: '_id',
-//           as: 'primeCategory'
-//         }
-//       },
-//       {
-//         $lookup: {
-//           from: 'subcategories',
-//           localField: '_id',
-//           foreignField: 'categoryId',
-//           as: 'subcategories'
-//         }
-//       },
-//       {
-//         $addFields: {
-//           categoryCount: { $size: '$subcategories' },
-//           totalProducts: {
-//             $sum: '$subcategories.productCount'
-//           },
-//           primeCategory: { $arrayElemAt: ['$primeCategory', 0] },
-//           image: {
-//             $cond: {
-//               if: { $ne: ['$image', null] },
-//               then: { $concat: [process.env.BASE_URL || 'http://localhost:3000', '/uploads/categories/', '$image'] },
-//               else: null
-//             }
-//           }
-//         }
-//       },
-//       {
-//         $project: {
-//           subcategories: 0,
-//           'primeCategory.createdAt': 0,
-//           'primeCategory.updatedAt': 0,
-//           'primeCategory.image': 0,
-//           'primeCategory.status': 0
-//         }
-//       }
-//     ];
-//
-//     const result = await Category.aggregate(pipeline);
-//
-//     res.status(200).json({
-//       success: true,
-//       message: 'Category updated successfully',
-//       data: result[0]
-//     });
-//   } catch (error) {
-//     if (req.file) {
-//       deleteFile(req.file.path);
-//     }
-//
-//     console.error('Error updating category:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Server error while updating category',
-//       error: 'INTERNAL_SERVER_ERROR'
-//     });
-//   }
-// };
 
 export const updateCategory = async (req, res) => {
   try {
@@ -694,7 +414,6 @@ export const updateCategory = async (req, res) => {
 
     const updateData = {};
 
-    // Check name uniqueness (within same prime category)
     if (name && name !== category.name) {
       const existingName = await Category.findOne({
         name: { $regex: new RegExp(`^${name}$`, 'i') },
@@ -720,7 +439,6 @@ export const updateCategory = async (req, res) => {
       updateData.status = status;
     }
 
-    // Handle image update (store full URL; delete old using key)
     if (req.file?.location) {
       if (category.image) {
         const oldKey = category.image.includes('.amazonaws.com/')
@@ -738,7 +456,6 @@ export const updateCategory = async (req, res) => {
       runValidators: true,
     });
 
-    // Aggregated result with counts
     const pipeline = [
       { $match: { _id: new mongoose.Types.ObjectId(updatedCategory._id) } },
       {
@@ -808,7 +525,6 @@ export const updateCategory = async (req, res) => {
       await deleteFileFromS3(req.file.key);
     }
 
-    
     res.status(500).json({
       success: false,
       message: 'Server error while updating category',
@@ -817,60 +533,10 @@ export const updateCategory = async (req, res) => {
   }
 };
 
-// Delete category
-// export const deleteCategory = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//
-//     const category = await Category.findById(id);
-//     if (!category) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Category not found',
-//         error: 'NOT_FOUND'
-//       });
-//     }
-//
-//     // Check if category has subcategories
-//     const subcategoryCount = await Subcategory.countDocuments({ categoryId: id });
-//     if (subcategoryCount > 0) {
-//       return res.status(400).json({
-//         success: false,
-//         message: `Cannot delete category with ${subcategoryCount} existing subcategories`,
-//         error: 'CATEGORY_HAS_SUBCATEGORIES',
-//         details: { subcategoryCount }
-//       });
-//     }
-//
-//     // Delete image if exists
-//     if (category.image) {
-//       deleteFile(`uploads/categories/${category.image}`);
-//     }
-//
-//     // Delete category
-//     await Category.findByIdAndDelete(id);
-//
-//     res.status(200).json({
-//       success: true,
-//       message: 'Category deleted successfully'
-//     });
-//   } catch (error) {
-//     console.error('Error deleting category:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Server error while deleting category',
-//       error: 'INTERNAL_SERVER_ERROR'
-//     });
-//   }
-// };
-
-
-
 export const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Step 1: Check if category exists
     const category = await Category.findById(id);
     if (!category) {
       return res.status(404).json({
@@ -880,7 +546,6 @@ export const deleteCategory = async (req, res) => {
       });
     }
 
-    // Step 2: Check for subcategories
     const subcategoryCount = await Subcategory.countDocuments({ categoryId: id });
     if (subcategoryCount > 0) {
       return res.status(400).json({
@@ -891,22 +556,18 @@ export const deleteCategory = async (req, res) => {
       });
     }
 
-    // Step 3: Delete image from S3 if exists
     if (category.image) {
       await deleteFileFromS3(category.image);
     }
 
-    // Step 4: Delete the category itself
     await Category.findByIdAndDelete(id);
 
-    // Step 5: Respond with success
     res.status(200).json({
       success: true,
       message: 'Category deleted successfully'
     });
 
   } catch (error) {
-    
     res.status(500).json({
       success: false,
       message: 'Server error while deleting category',
@@ -914,5 +575,3 @@ export const deleteCategory = async (req, res) => {
     });
   }
 };
-
-

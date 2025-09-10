@@ -3,9 +3,6 @@ import PrimeCategory from '../models/PrimeCategory.js';
 import Category from '../models/Category.js';
 import Subcategory from '../models/Subcategory.js';
 
-// @desc    Generate new serial number
-// @route   GET /api/categories/utils/generate-serial
-// @access  Public
 export const generateNewSerialNumber = async (req, res) => {
   try {
     const serialNumber = generateSerialNumber();
@@ -17,7 +14,6 @@ export const generateNewSerialNumber = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error generating serial number:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while generating serial number',
@@ -26,12 +22,8 @@ export const generateNewSerialNumber = async (req, res) => {
   }
 };
 
-// @desc    Get category statistics
-// @route   GET /api/categories/utils/statistics
-// @access  Public
 export const getCategoryStatistics = async (req, res) => {
   try {
-    // Get counts for each category type
     const [
       totalPrimeCategories,
       totalCategories,
@@ -52,7 +44,6 @@ export const getCategoryStatistics = async (req, res) => {
       Subcategory.countDocuments({ stockStatus: 'Out of Stock' })
     ]);
 
-    // Get total products count
     const totalProductsResult = await Subcategory.aggregate([
       {
         $group: {
@@ -64,12 +55,10 @@ export const getCategoryStatistics = async (req, res) => {
     
     const totalProducts = totalProductsResult.length > 0 ? totalProductsResult[0].totalProducts : 0;
 
-    // Get inactive counts
     const inactivePrimeCategories = totalPrimeCategories - activePrimeCategories;
     const inactiveCategories = totalCategories - activeCategories;
     const inactiveSubcategories = totalSubcategories - activeSubcategories;
 
-    // Get recent activity (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -83,7 +72,6 @@ export const getCategoryStatistics = async (req, res) => {
       Subcategory.countDocuments({ createdAt: { $gte: thirtyDaysAgo } })
     ]);
 
-    // Get top categories by product count
     const topCategories = await Category.aggregate([
       {
         $lookup: {
@@ -150,7 +138,6 @@ export const getCategoryStatistics = async (req, res) => {
       data: statistics
     });
   } catch (error) {
-    console.error('Error fetching category statistics:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while fetching statistics',
@@ -159,9 +146,6 @@ export const getCategoryStatistics = async (req, res) => {
   }
 };
 
-// @desc    Get category hierarchy
-// @route   GET /api/categories/utils/hierarchy
-// @access  Public
 export const getCategoryHierarchy = async (req, res) => {
   try {
     const { includeInactive = false } = req.query;
@@ -237,7 +221,6 @@ export const getCategoryHierarchy = async (req, res) => {
       data: hierarchy
     });
   } catch (error) {
-    console.error('Error fetching category hierarchy:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while fetching hierarchy',
@@ -246,12 +229,9 @@ export const getCategoryHierarchy = async (req, res) => {
   }
 };
 
-// @desc    Bulk update status
-// @route   PATCH /api/categories/utils/bulk-status
-// @access  Admin
 export const bulkUpdateStatus = async (req, res) => {
   try {
-    const { type, ids, status } = req.body; // type: 'prime', 'category', 'subcategory'
+    const { type, ids, status } = req.body;
     
     if (!['prime', 'category', 'subcategory'].includes(type)) {
       return res.status(400).json({
@@ -305,7 +285,6 @@ export const bulkUpdateStatus = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in bulk status update:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while updating status',
@@ -314,9 +293,6 @@ export const bulkUpdateStatus = async (req, res) => {
   }
 };
 
-// @desc    Export categories data
-// @route   GET /api/categories/utils/export
-// @access  Admin
 export const exportCategoriesData = async (req, res) => {
   try {
     const { format = 'json', type = 'all' } = req.query;
@@ -359,7 +335,6 @@ export const exportCategoriesData = async (req, res) => {
         data
       });
     } else {
-      // For future: CSV export could be implemented here
       return res.status(400).json({
         success: false,
         message: 'Only JSON format is currently supported',
@@ -367,11 +342,10 @@ export const exportCategoriesData = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error exporting categories data:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while exporting data',
       error: 'INTERNAL_SERVER_ERROR'
     });
   }
-}; 
+};

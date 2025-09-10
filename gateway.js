@@ -4,13 +4,17 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import authRoutes from "./apps/auth/routes/authRoute.js";
 import userRoutes from "./apps/user/routes/userRoutes.js";
+import addressRoutes from "./apps/user/routes/addressRoutes.js";
 import productRoutes from "./apps/Product/routes/productRoutes.js";
+import searchRoutes from "./apps/Product/routes/searchRoutes.js";
 import sellerRoutes from "./apps/seller/routes/sellerRoutes.js";
 import riderRoutes from "./apps/rider/routes/riderRoutes.js";
 import categoryRoutes from "./apps/categoryManagement/routes/categoryRoutes.js";
 import brandRoutes from "./apps/brand/routes/brandRoutes.js";
 import cartRoutes from "./apps/cart/routes/cartRoutes.js";
 import couponRoutes from "./apps/coupon/routes/couponRoutes.js";
+import bannerRoutes from "./apps/banner/routes/bannerRoutes.js";
+import flashsaleRoutes from "./apps/flashsale/routes/flashsaleRoutes.js";
 import wishlistRoutes from "./apps/wishlist/routes/wishlistRoutes.js";
 import orderRoutes from "./apps/order/routes/orderRoutes.js";
 
@@ -97,13 +101,17 @@ const connectDb = async () => {
 // Routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/user", userRoutes);
+app.use("/api/v1/addresses", addressRoutes);
 app.use("/api/v1/product", productRoutes);
+app.use("/api/v1/search", searchRoutes);
 app.use("/api/v1/seller", sellerRoutes);
 app.use("/api/v1/rider", riderRoutes);
 app.use("/api/v1/categories", categoryRoutes);
 app.use("/api/v1/brands", brandRoutes);
 app.use("/api/v1/cart", cartRoutes);
 app.use("/api/v1/coupons", couponRoutes);
+app.use("/api/v1/banners", bannerRoutes);
+app.use("/api/v1/flashsales", flashsaleRoutes);
 app.use("/api/v1/wishlist", wishlistRoutes);
 app.use("/api/v1/orders", orderRoutes);
 

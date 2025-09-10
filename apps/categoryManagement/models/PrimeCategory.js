@@ -8,22 +8,12 @@ const primeCategorySchema = new mongoose.Schema({
     trim: true,
     maxlength: [100, 'Prime category name cannot exceed 100 characters']
   },
-  // serialNumber: {
-  //   type: String,
-  //   required: [true, 'Serial number is required'],
-  //   unique: true,
-  //   trim: true,
-  //   uppercase: true,
-  //   match: [/^[A-Z]{2,3}[0-9]{4,6}$/, 'Invalid serial number format']
-  // },
-
   serialNumber: {
     type: String,
     required: [true, 'Serial number is required'],
     unique: true,
     trim: true,
-    uppercase: true,
-    // match: [/^[A-Z]{2,3}[0-9]{4,6}$/, 'Invalid serial number format']
+    uppercase: true
   },
   image: {
     type: String,
@@ -41,7 +31,6 @@ const primeCategorySchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Virtual for category count
 primeCategorySchema.virtual('categoryCount', {
   ref: 'Category',
   localField: '_id',
@@ -49,7 +38,6 @@ primeCategorySchema.virtual('categoryCount', {
   count: true
 });
 
-// Virtual for total products count
 primeCategorySchema.virtual('totalProducts').get(async function() {
   const Category = mongoose.model('Category');
   const Subcategory = mongoose.model('Subcategory');
@@ -61,13 +49,11 @@ primeCategorySchema.virtual('totalProducts').get(async function() {
   return subcategories.reduce((total, sub) => total + (sub.productCount || 0), 0);
 });
 
-// Index for better query performance
 primeCategorySchema.index({ name: 1 });
 primeCategorySchema.index({ serialNumber: 1 });
 primeCategorySchema.index({ status: 1 });
 primeCategorySchema.index({ createdAt: -1 });
 
-// Instance method to get category with counts
 primeCategorySchema.methods.getWithCounts = async function() {
   await this.populate('categoryCount');
   return this;
@@ -75,4 +61,4 @@ primeCategorySchema.methods.getWithCounts = async function() {
 
 const PrimeCategory = mongoose.model('PrimeCategory', primeCategorySchema);
 
-export default PrimeCategory; 
+export default PrimeCategory;

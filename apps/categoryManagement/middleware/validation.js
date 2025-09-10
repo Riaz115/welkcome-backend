@@ -4,12 +4,10 @@ import { validateSerialNumber, isSerialNumberUnique } from '../utils/serialGener
 import PrimeCategory from '../models/PrimeCategory.js';
 import Category from '../models/Category.js';
 
-// Validation helper to check ObjectId format
 const isValidObjectId = (value) => {
   return mongoose.Types.ObjectId.isValid(value);
 };
 
-// Middleware to handle validation errors
 export const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -23,7 +21,6 @@ export const handleValidationErrors = (req, res, next) => {
   next();
 };
 
-// Prime Category Validations
 export const validateCreatePrimeCategory = [
   body('name')
     .trim()
@@ -73,7 +70,6 @@ export const validateUpdatePrimeCategory = [
   handleValidationErrors
 ];
 
-// Category Validations
 export const validateCreateCategory = [
   body('name')
     .trim()
@@ -136,7 +132,6 @@ export const validateUpdateCategory = [
   handleValidationErrors
 ];
 
-// Subcategory Validations
 export const validateCreateSubcategory = [
   body('name')
     .trim()
@@ -219,7 +214,6 @@ export const validateUpdateSubcategory = [
   handleValidationErrors
 ];
 
-// General ID validation
 export const validateId = [
   param('id')
     .custom(isValidObjectId)
@@ -228,7 +222,6 @@ export const validateId = [
   handleValidationErrors
 ];
 
-// Query parameter validations for listing endpoints
 export const validateListQuery = [
   query('page')
     .optional()
@@ -264,7 +257,6 @@ export const validateListQuery = [
   handleValidationErrors
 ];
 
-// Validation for subcategory specific queries
 export const validateSubcategoryListQuery = [
   ...validateListQuery,
   
@@ -281,7 +273,6 @@ export const validateSubcategoryListQuery = [
   handleValidationErrors
 ];
 
-// Validation for prime category ID in nested routes
 export const validatePrimeCategoryId = [
   param('primeId')
     .custom(isValidObjectId)
@@ -297,7 +288,6 @@ export const validatePrimeCategoryId = [
   handleValidationErrors
 ];
 
-// Validation for category ID in nested routes
 export const validateCategoryId = [
   param('categoryId')
     .custom(isValidObjectId)
@@ -311,4 +301,4 @@ export const validateCategoryId = [
     }),
   
   handleValidationErrors
-]; 
+];

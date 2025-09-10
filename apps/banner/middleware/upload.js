@@ -18,7 +18,7 @@ const getS3Key = (originalName) => {
   const name = path.basename(originalName, path.extname(originalName)).replace(/\s+/g, '_');
   const ext = path.extname(originalName);
   const timestamp = Date.now();
-  return `category_management/${name}-${timestamp}${ext}`;
+  return `banners/${name}-${timestamp}${ext}`;
 };
 
 const upload = multer({
@@ -40,70 +40,29 @@ const upload = multer({
     }
   },
   limits: {
-    fileSize: 5 * 1024 * 1024
+    fileSize: 10 * 1024 * 1024 // 10MB
   }
 });
 
-export const uploadCategoryImage = upload.single('image');
-
-export const uploadImageEither = upload.fields([
-  { name: 'image', maxCount: 1 },
-  { name: 'document', maxCount: 1 }
-]);
+export const uploadBannerImage = upload.single('image');
 
 export const handleUploadError = (error, req, res, next) => {
   if (error instanceof multer.MulterError || error.message === 'Only image files are allowed') {
     return res.status(400).json({
       success: false,
       message: error.message,
-      error: 'UPLOAD_ERROR',
+      error: 'UPLOAD_ERROR'
     });
   }
   next(error);
 };
 
 export const getS3ImageUrl = (key) => {
-  return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
-};
-
-export const deleteFileFromS3 = async (key) => {
-  const params = {
-    Bucket: process.env.AWS_BUCKET_NAME,
-    Key: key,
-  };
-
-  try {
-    const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
-    await s3.send(new DeleteObjectCommand(params));
-  } catch (error) {
-    throw new Error(`Error deleting S3 object: ${error.message}`);
-  }
-};
-
-export const getImageUrl = (key) => {
   if (!key) return null;
   if (typeof key === 'string' && (key.startsWith('http://') || key.startsWith('https://'))) {
     return key;
   }
-  const bucket = process.env.AWS_BUCKET_NAME || 'monkmaze-s3';
-  const region = process.env.AWS_REGION || 'ap-south-1';
+  const bucket = process.env.AWS_BUCKET_NAME;
+  const region = process.env.AWS_REGION;
   return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
-};
-
-export const validateImageFile = (req, res, next) => {
-  const uploaded = req.file || (req.files && (req.files.image?.[0] || req.files.document?.[0]));
-
-  if (!uploaded) {
-    return next();
-  }
-
-  if (uploaded.size && uploaded.size > 5 * 1024 * 1024) {
-    return res.status(400).json({
-      success: false,
-      message: 'Image file size must be less than 5MB',
-      error: 'FILE_SIZE_LIMIT'
-    });
-  }
-
-  next();
 };

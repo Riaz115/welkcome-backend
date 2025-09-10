@@ -201,11 +201,10 @@ export const getUserOrders = async (req, res) => {
 export const getOrderById = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const userId = req.user.id;
 
-    const order = await Order.findOne({ _id: orderId, userId })
-      .populate('items.productId', 'title coverImage images description')
-      .populate('userId', 'firstName lastName email phone');
+
+    const order = await Order.findOne({ _id: orderId  })
+    
 
     if (!order) {
       return res.status(404).json({
